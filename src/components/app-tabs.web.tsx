@@ -8,6 +8,7 @@ import {
 } from 'expo-router/ui';
 import { SymbolView } from 'expo-symbols';
 import { Pressable, useColorScheme, View, StyleSheet } from 'react-native';
+import type { ComponentProps } from 'react';
 
 import { Colors, MaxContentWidth, Spacing } from '@/constants/theme';
 
@@ -34,8 +35,13 @@ export default function AppTabs() {
 }
 
 export function TabButton({ children, isFocused, ...props }: TabTriggerSlotProps) {
+  const { ref, ...pressableProps } = props;
+
   return (
-    <Pressable {...props} style={({ pressed }) => pressed && styles.pressed}>
+    <Pressable
+      {...pressableProps}
+      ref={ref as ComponentProps<typeof Pressable>['ref']}
+      style={({ pressed }) => pressed && styles.pressed}>
       <ThemedView
         type={isFocused ? 'backgroundSelected' : 'backgroundElement'}
         style={styles.tabButtonView}>

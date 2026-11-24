@@ -1,42 +1,32 @@
 {
   "expo": {
-    "name": "h",
-    "slug": "h",
-    "version": "1.0.0",
-    "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
-    "scheme": "h",
-    "userInterfaceStyle": "automatic",
-    "ios": {
-      "icon": "./assets/expo.icon"
-    },
-    "android": {
-      "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/images/android-icon-foreground.png",
-        "backgroundImage": "./assets/images/android-icon-background.png",
-        "monochromeImage": "./assets/images/android-icon-monochrome.png"
-      },
-      "predictiveBackGestureEnabled": false
-    },
-    "web": {
-      "output": "server",
-      "favicon": "./assets/images/favicon.png"
-    },
+    "name": "TRAIL-IT",
+    "slug": "trail-it",
+    "icon": "./assets/images/logos.png",
+    "scheme": "trailit",
     "plugins": [
       "expo-router",
       [
-        "expo-splash-screen",
+        "expo-location",
         {
-          "backgroundColor": "#208AEF",
-          "image": "./assets/images/splash-icon.png",
-          "imageWidth": 76
+          "locationWhenInUsePermission": "Allow TRAIL-IT to show your position on the campus map and guide you to a destination."
         }
-      ]
+      ],
+      "expo-splash-screen",
+      "expo-status-bar",
+      "expo-web-browser"
     ],
-    "experiments": {
-      "typedRoutes": true,
-      "reactCompiler": true
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/logos.png",
+        "backgroundColor": "#171044"
+      },
+      "package": "com.skyt_t.trailit"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "13dca92c-f3c9-4ba1-9455-36c6fd32b5cf"
+      }
     }
   }
 }
