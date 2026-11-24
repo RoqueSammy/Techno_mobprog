@@ -18,6 +18,8 @@ import Animated, {
   runOnJS,
   useAnimatedStyle,
   useSharedValue,
+  withSpring,
+  withTiming,
 } from "react-native-reanimated";
 
 import { CAMPUS_BOUNDARY } from "../constants/campusBoundary";
@@ -58,8 +60,22 @@ type RouteRequestState = {
   destinationId: number | null;
 };
 
+type InfoTab = "Overview" | "Details" | "Photos";
+
 const MIN_REROUTE_DISTANCE_METERS = 15;
 const MIN_REROUTE_INTERVAL_MS = 8_000;
+
+const SHEET_SPRING = {
+  damping: 24,
+  stiffness: 180,
+  mass: 0.8,
+};
+
+const MAP_SPRING = {
+  damping: 20,
+  stiffness: 150,
+  mass: 0.8,
+};
 
 // --------------------------------------------------
 // SEARCH ALIASES
@@ -100,9 +116,15 @@ function calculateDistance(a: GPSPoint, b: GPSPoint) {
 
   const h =
     Math.sin(deltaLat / 2) ** 2 +
-    Math.cos(lat1) * Math.cos(lat2) * Math.sin(deltaLon / 2) ** 2;
+    Math.cos(lat1) *
+      Math.cos(lat2) *
+      Math.sin(deltaLon / 2) ** 2;
 
-  return earthRadius * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
+  return (
+    earthRadius *
+    2 *
+    Math.atan2(Math.sqrt(h), Math.sqrt(1 - h))
+  );
 }
 
 // --------------------------------------------------
@@ -111,8 +133,6 @@ function calculateDistance(a: GPSPoint, b: GPSPoint) {
 
 function isInsideCampus(longitude: number, latitude: number) {
   const boundary = CAMPUS_BOUNDARY;
-
-  // Approximately 8 metres of tolerance.
   const tolerance = 0.000072;
 
   let inside = false;
@@ -124,7 +144,6 @@ function isInsideCampus(longitude: number, latitude: number) {
     const xj = boundary[j].longitude;
     const yj = boundary[j].latitude;
 
-    // Check whether the GPS point is close to this boundary segment.
     const dx = (xj - xi) * Math.cos((latitude * Math.PI) / 180);
     const dy = yj - yi;
 
@@ -136,7 +155,10 @@ function isInsideCampus(longitude: number, latitude: number) {
     const t =
       lengthSquared === 0
         ? 0
-        : Math.max(0, Math.min(1, (px * dx + py * dy) / lengthSquared));
+        : Math.max(
+            0,
+            Math.min(1, (px * dx + py * dy) / lengthSquared),
+          );
 
     const closestX = xi + t * (xj - xi);
     const closestY = yi + t * (yj - yi);
@@ -150,10 +172,10 @@ function isInsideCampus(longitude: number, latitude: number) {
       return true;
     }
 
-    // Standard ray-casting algorithm.
     const intersects =
       yi > latitude !== yj > latitude &&
-      longitude < ((xj - xi) * (latitude - yi)) / (yj - yi) + xi;
+      longitude <
+        ((xj - xi) * (latitude - yi)) / (yj - yi) + xi;
 
     if (intersects) {
       inside = !inside;
@@ -172,10 +194,6 @@ export default function HomeScreen() {
   const [userLocation, setUserLocation] =
     useState<Location.LocationObjectCoords | null>(null);
 
-  const [locationMessage, setLocationMessage] = useState(
-    "Waiting for GPS location...",
-  );
-
   const [isInside, setIsInside] = useState<boolean | null>(null);
 
   // MAP
@@ -187,10 +205,70 @@ export default function HomeScreen() {
   // SEARCH
   const [searchQuery, setSearchQuery] = useState("");
   const [showSearchResults, setShowSearchResults] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState("All");
+  const [showCategoryFilters, setShowCategoryFilters] = useState(false);
+
+  const availableCategories = [
+    "All",
+    ...Array.from(
+      new Set(
+        IMPORTANT_LOCATIONS
+          .map((location) => location.category)
+          .filter((category): category is string => Boolean(category)),
+      ),
+    ),
+  ];
+
+  const visibleLocations =
+    selectedCategory === "All"
+      ? IMPORTANT_LOCATIONS
+      : IMPORTANT_LOCATIONS.filter(
+          (location) => location.category === selectedCategory,
+        );
 
   // DESTINATION
   const [selectedLocation, setSelectedLocation] =
     useState<CampusLocation | null>(null);
+
+  // BUILDING INFORMATION TABS
+  const [selectedInfoTab, setSelectedInfoTab] =
+    useState<InfoTab>("Overview");
+
+  // BOTTOM SHEET
+  const [sheetExpanded, setSheetExpanded] = useState(false);
+
+  const sheetHeight = useSharedValue(0);
+  const sheetDragStart = useSharedValue(0);
+  const sheetDragCurrent = useSharedValue(0);
+
+  const collapsedSheetHeight = mapSize.height * 0.43;
+  const expandedSheetHeight = mapSize.height * 0.85;
+
+  function expandSheet() {
+    setSheetExpanded(true);
+
+    sheetHeight.value = withSpring(
+      expandedSheetHeight,
+      SHEET_SPRING,
+    );
+  }
+
+  function collapseSheet() {
+    setSheetExpanded(false);
+
+    sheetHeight.value = withSpring(
+      collapsedSheetHeight,
+      SHEET_SPRING,
+    );
+  }
+
+  function toggleSheet() {
+    if (sheetExpanded) {
+      collapseSheet();
+    } else {
+      expandSheet();
+    }
+  }
 
   // NAVIGATION
   const [routeCoordinates, setRouteCoordinates] = useState<[number, number][]>(
@@ -205,7 +283,6 @@ export default function HomeScreen() {
   const [isRerouting, setIsRerouting] = useState(false);
   const [isFollowing, setIsFollowing] = useState(false);
 
-  // Keep current navigation state available to asynchronous requests.
   const isTrackingRef = useRef(false);
   const selectedDestinationRef = useRef<CampusLocation | null>(null);
 
@@ -261,7 +338,10 @@ export default function HomeScreen() {
   ) => {
     "worklet";
 
-    const maximum = Math.max(0, (imageSize * currentZoom - viewportSize) / 2);
+    const maximum = Math.max(
+      0,
+      (imageSize * currentZoom - viewportSize) / 2,
+    );
 
     return Math.min(maximum, Math.max(-maximum, value));
   };
@@ -291,7 +371,10 @@ export default function HomeScreen() {
 
   const pinchGesture = Gesture.Pinch()
     .onUpdate((event) => {
-      const nextZoom = Math.min(4, Math.max(1, savedZoom.value * event.scale));
+      const nextZoom = Math.min(
+        4,
+        Math.max(1, savedZoom.value * event.scale),
+      );
 
       zoom.value = nextZoom;
 
@@ -315,6 +398,65 @@ export default function HomeScreen() {
 
   const mapGesture = Gesture.Simultaneous(panGesture, pinchGesture);
 
+  // --------------------------------------------------
+  // BOTTOM SHEET ANIMATION
+  // --------------------------------------------------
+
+  useEffect(() => {
+    if (mapSize.height <= 0) return;
+
+    const targetHeight =
+      mapSize.height * (sheetExpanded ? 0.85 : 0.43);
+
+    sheetHeight.value = withSpring(
+      targetHeight,
+      SHEET_SPRING,
+    );
+  }, [mapSize.height, sheetExpanded]);
+
+  const sheetDragGesture = Gesture.Pan()
+    .activeOffsetY([-8, 8])
+    .failOffsetX([-20, 20])
+    .onBegin(() => {
+      sheetDragStart.value = sheetHeight.value;
+      sheetDragCurrent.value = sheetHeight.value;
+    })
+    .onUpdate((event) => {
+      const nextHeight = Math.max(
+        collapsedSheetHeight,
+        Math.min(
+          expandedSheetHeight,
+          sheetDragStart.value - event.translationY,
+        ),
+      );
+
+      sheetDragCurrent.value = nextHeight;
+      sheetHeight.value = nextHeight;
+    })
+    .onEnd((event) => {
+      const middleHeight =
+        (collapsedSheetHeight + expandedSheetHeight) / 2;
+
+      const shouldExpand =
+        sheetDragCurrent.value > middleHeight ||
+        event.velocityY < -500;
+
+      const targetHeight = shouldExpand
+        ? expandedSheetHeight
+        : collapsedSheetHeight;
+
+      sheetHeight.value = withSpring(
+        targetHeight,
+        SHEET_SPRING,
+      );
+
+      runOnJS(setSheetExpanded)(shouldExpand);
+    });
+
+  const animatedSheetStyle = useAnimatedStyle(() => ({
+    height: sheetHeight.value,
+  }));
+
   const animatedMapStyle = useAnimatedStyle(() => ({
     transform: [
       { translateX: translateX.value },
@@ -335,9 +477,9 @@ export default function HomeScreen() {
     22,
     Math.min(90, (userLocation?.accuracy ?? 8) * 3.9565 * scale * 2),
   );
+
   const gpsAccuracyRadius = gpsAccuracyDiameter / 2;
 
-  // Is the user's GPS coordinate inside the map image?
   const userIsVisible =
     userPixel !== null &&
     userPixel.x >= 0 &&
@@ -345,10 +487,6 @@ export default function HomeScreen() {
     userPixel.y >= 0 &&
     userPixel.y <= MAP_IMAGE.height;
 
-  // IMPORTANT:
-  // The marker is displayed only if BOTH conditions are true:
-  // 1. GPS is inside the campus perimeter.
-  // 2. GPS is inside the displayed map image.
   const shouldShowGPSMarker =
     isInside === true && userIsVisible && userPixel !== null;
 
@@ -363,25 +501,32 @@ export default function HomeScreen() {
 
     const currentZoom = zoom.value;
 
-    const targetX = -(userPixel.x * scale - renderedWidth / 2) * currentZoom;
+    const targetX =
+      -(userPixel.x * scale - renderedWidth / 2) * currentZoom;
 
-    const targetY = -(userPixel.y * scale - renderedHeight / 2) * currentZoom;
+    const targetY =
+      -(userPixel.y * scale - renderedHeight / 2) * currentZoom;
 
-    // Reanimated shared values are intentionally updated from this effect.
     // eslint-disable-next-line react-hooks/immutability
-    translateX.value = clampTranslation(
-      targetX,
-      renderedWidth,
-      mapSize.width,
-      currentZoom,
+    translateX.value = withTiming(
+      clampTranslation(
+        targetX,
+        renderedWidth,
+        mapSize.width,
+        currentZoom,
+      ),
+      { duration: 400 },
     );
 
     // eslint-disable-next-line react-hooks/immutability
-    translateY.value = clampTranslation(
-      targetY,
-      renderedHeight,
-      mapSize.height,
-      currentZoom,
+    translateY.value = withTiming(
+      clampTranslation(
+        targetY,
+        renderedHeight,
+        mapSize.height,
+        currentZoom,
+      ),
+      { duration: 400 },
     );
   }, [
     isFollowing,
@@ -402,7 +547,7 @@ export default function HomeScreen() {
   // SEARCH
   // --------------------------------------------------
 
-  const searchResults = IMPORTANT_LOCATIONS.filter((location) => {
+  const searchResults = visibleLocations.filter((location) => {
     const query = searchQuery.trim().toLowerCase();
 
     if (!query) return false;
@@ -439,7 +584,6 @@ export default function HomeScreen() {
       state.forceNext = true;
     }
 
-    // If a request is already running, save the newest position.
     if (state.inFlight) {
       state.pending = true;
       return;
@@ -468,11 +612,14 @@ export default function HomeScreen() {
         }
 
         if (!forceThisRequest && state.lastOrigin) {
-          const movement = calculateDistance(state.lastOrigin, requestOrigin);
-          const timeSinceLastRoute = Date.now() - state.lastRequestTime;
+          const movement = calculateDistance(
+            state.lastOrigin,
+            requestOrigin,
+          );
 
-          // Avoid GPS-noise reroutes, while refreshing often enough for the
-          // route start to follow someone walking along campus paths.
+          const timeSinceLastRoute =
+            Date.now() - state.lastRequestTime;
+
           if (
             movement < MIN_REROUTE_DISTANCE_METERS ||
             timeSinceLastRoute < MIN_REROUTE_INTERVAL_MS
@@ -488,13 +635,12 @@ export default function HomeScreen() {
           latitude: requestDestination.latitude,
           longitude: requestDestination.longitude,
         };
+
         const offlineFallbackRoute = getOfflineWalkingRoute(
           requestOrigin,
           destinationPoint,
         );
 
-        // Show the saved campus route immediately. If the online route succeeds,
-        // it replaces this path; if the device is offline, this path remains.
         if (
           offlineFallbackRoute &&
           offlineFallbackRoute.coordinates.length >= 2 &&
@@ -503,10 +649,12 @@ export default function HomeScreen() {
           isTrackingRef.current
         ) {
           setRouteCoordinates(offlineFallbackRoute.coordinates);
+
           setRouteInfo({
             distance: offlineFallbackRoute.distance,
             duration: offlineFallbackRoute.distance / 1.2,
           });
+
           setIsOfflineRoute(true);
           state.lastOrigin = requestOrigin;
         }
@@ -549,27 +697,43 @@ export default function HomeScreen() {
               latitude: coordinates[0][1],
               longitude: coordinates[0][0],
             };
-            const lastCoordinate = coordinates[coordinates.length - 1];
+
+            const lastCoordinate =
+              coordinates[coordinates.length - 1];
+
             const snappedDestination: GPSPoint = {
               latitude: lastCoordinate[1],
               longitude: lastCoordinate[0],
             };
-            const startConnector = calculateDistance(requestOrigin, snappedStart);
-            const destinationConnector = calculateDistance(snappedDestination, {
-              latitude: requestDestination.latitude,
-              longitude: requestDestination.longitude,
-            });
-            // Only draw short connectors between the user/building marker and
-            // the routed walkway. Longer straight connectors can cut across
-            // buildings or courtyards and look like part of the walking path.
+
+            const startConnector = calculateDistance(
+              requestOrigin,
+              snappedStart,
+            );
+
+            const destinationConnector = calculateDistance(
+              snappedDestination,
+              {
+                latitude: requestDestination.latitude,
+                longitude: requestDestination.longitude,
+              },
+            );
+
             const includeStart = startConnector <= 12;
             const includeDestination = destinationConnector <= 12;
+
             const connectorDistance =
               (includeStart ? startConnector : 0) +
               (includeDestination ? destinationConnector : 0);
+
             const displayedCoordinates = [
               ...(includeStart
-                ? [[requestOrigin.longitude, requestOrigin.latitude] as [number, number]]
+                ? [
+                    [
+                      requestOrigin.longitude,
+                      requestOrigin.latitude,
+                    ] as [number, number],
+                  ]
                 : []),
               ...coordinates,
               ...(includeDestination ? [end] : []),
@@ -585,11 +749,15 @@ export default function HomeScreen() {
                 Number(feature.properties?.summary?.duration ?? 0) +
                 connectorDistance / 1.2,
             });
-            setIsOfflineRoute(false);
 
+            setIsOfflineRoute(false);
             state.lastOrigin = requestOrigin;
 
-            console.log("Walking route updated:", coordinates.length, "points");
+            console.log(
+              "Walking route updated:",
+              coordinates.length,
+              "points",
+            );
           }
         } catch (error) {
           console.error("ORS route error:", error);
@@ -604,18 +772,22 @@ export default function HomeScreen() {
               offlineFallbackRoute.coordinates.length >= 2
             ) {
               setRouteCoordinates(offlineFallbackRoute.coordinates);
+
               setRouteInfo({
                 distance: offlineFallbackRoute.distance,
                 duration: offlineFallbackRoute.distance / 1.2,
               });
             } else {
-              // Never draw a straight line as if it were a walking path.
               const distance = calculateDistance(
                 requestOrigin,
                 destinationPoint,
               );
+
               setRouteCoordinates([]);
-              setRouteInfo({ distance, duration: distance / 1.2 });
+              setRouteInfo({
+                distance,
+                duration: distance / 1.2,
+              });
             }
 
             setIsOfflineRoute(true);
@@ -623,7 +795,6 @@ export default function HomeScreen() {
           }
         }
 
-        // Process the latest GPS update if one arrived during the request.
         if (state.pending) continue;
 
         break;
@@ -642,7 +813,11 @@ export default function HomeScreen() {
       ) {
         state.pending = false;
 
-        requestNewRoute(state.latestOrigin, state.latestDestination, false);
+        requestNewRoute(
+          state.latestOrigin,
+          state.latestDestination,
+          false,
+        );
       }
     }
   }
@@ -657,45 +832,38 @@ export default function HomeScreen() {
 
     async function startGPS() {
       try {
-        const permission = await Location.requestForegroundPermissionsAsync();
+        const permission =
+          await Location.requestForegroundPermissionsAsync();
 
         if (!active) return;
 
         if (permission.status !== "granted") {
-          setLocationMessage("Location permission is required.");
           return;
         }
 
-        const servicesEnabled = await Location.hasServicesEnabledAsync();
+        const servicesEnabled =
+          await Location.hasServicesEnabledAsync();
 
         if (!active) return;
 
         if (!servicesEnabled) {
-          setLocationMessage(
-            "Turn on Location in your phone settings to use GPS.",
-          );
           return;
         }
 
-        setLocationMessage("Getting your current GPS position...");
-
-        // A recent cached fix can show the user's position immediately while
-        // the device looks for a fresh satellite fix, which may take longer offline.
-        const lastKnownLocation = await Location.getLastKnownPositionAsync({
-          maxAge: 60_000,
-          requiredAccuracy: 100,
-        });
+        const lastKnownLocation =
+          await Location.getLastKnownPositionAsync({
+            maxAge: 60_000,
+            requiredAccuracy: 100,
+          });
 
         if (active && lastKnownLocation) {
           updateGPSPosition(lastKnownLocation);
-          setLocationMessage(
-            "Using your last GPS position while finding a fresh fix...",
-          );
         }
 
-        const initialLocation = await Location.getCurrentPositionAsync({
-          accuracy: Location.Accuracy.BestForNavigation,
-        });
+        const initialLocation =
+          await Location.getCurrentPositionAsync({
+            accuracy: Location.Accuracy.BestForNavigation,
+          });
 
         if (!active) return;
 
@@ -715,12 +883,6 @@ export default function HomeScreen() {
         );
       } catch (error) {
         console.warn("Unable to get a current GPS fix:", error);
-
-        if (active) {
-          setLocationMessage(
-            "GPS could not get a current fix. Turn on Location and try outdoors.",
-          );
-        }
       }
     }
 
@@ -729,15 +891,12 @@ export default function HomeScreen() {
 
       setUserLocation(coords);
 
-      const inside = isInsideCampus(coords.longitude, coords.latitude);
+      const inside = isInsideCampus(
+        coords.longitude,
+        coords.latitude,
+      );
 
       setIsInside(inside);
-
-      setLocationMessage(
-        inside
-          ? "You are inside the USTP coverage area."
-          : "You are outside the USTP coverage area.",
-      );
 
       console.log(
         "GPS UPDATE:",
@@ -773,7 +932,7 @@ export default function HomeScreen() {
       selectedLocation,
       false,
     );
-    // The changing request function must not retrigger this routing effect.
+
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userLocation, isTracking, selectedLocation]);
 
@@ -786,15 +945,21 @@ export default function HomeScreen() {
       selectedDestinationRef.current?.id === location.id;
 
     setSelectedLocation(location);
+    setSelectedInfoTab("Overview");
+    setSheetExpanded(false);
+
+    sheetHeight.value = withSpring(
+      collapsedSheetHeight,
+      SHEET_SPRING,
+    );
+
     selectedDestinationRef.current = location;
 
     setSearchQuery("");
     setShowSearchResults(false);
 
-    // Keep the route when selecting the same destination again.
     if (isSameDestination) return;
 
-    // Stop the previous destination's navigation.
     isTrackingRef.current = false;
 
     setIsTracking(false);
@@ -808,6 +973,7 @@ export default function HomeScreen() {
     setIsRerouting(false);
 
     const routeState = routeRequestRef.current;
+
     routeState.pending = false;
     routeState.forceNext = false;
     routeState.lastOrigin = null;
@@ -846,14 +1012,17 @@ export default function HomeScreen() {
     isTrackingRef.current = true;
 
     const routeState = routeRequestRef.current;
+
     routeState.pending = true;
     routeState.forceNext = true;
     routeState.lastOrigin = null;
     routeState.lastRequestTime = 0;
+
     routeState.latestOrigin = {
       latitude: userLocation.latitude,
       longitude: userLocation.longitude,
     };
+
     routeState.latestDestination = destination;
     routeState.destinationId = destination.id;
 
@@ -885,6 +1054,7 @@ export default function HomeScreen() {
     setIsOfflineRoute(false);
 
     const routeState = routeRequestRef.current;
+
     routeState.pending = false;
     routeState.forceNext = false;
     routeState.lastOrigin = null;
@@ -922,28 +1092,66 @@ export default function HomeScreen() {
   function resetMapPosition() {
     setIsFollowing(false);
 
-    // These imperative updates reset the Reanimated map gesture state.
-    // eslint-disable-next-line react-hooks/immutability
-    zoom.value = INITIAL_ZOOM;
+    zoom.value = withSpring(INITIAL_ZOOM, MAP_SPRING);
     savedZoom.value = INITIAL_ZOOM;
 
-    // eslint-disable-next-line react-hooks/immutability
-    translateX.value = 0;
-    // eslint-disable-next-line react-hooks/immutability
-    translateY.value = 0;
+    translateX.value = withSpring(0, MAP_SPRING);
+    translateY.value = withSpring(0, MAP_SPRING);
+  }
+
+  // --------------------------------------------------
+  // ZOOM IN / ZOOM OUT BUTTONS
+  // --------------------------------------------------
+
+  function adjustZoom(direction: "in" | "out") {
+    const nextZoom = Math.min(
+      4,
+      Math.max(
+        1,
+        zoom.value + (direction === "in" ? 0.25 : -0.25),
+      ),
+    );
+
+    zoom.value = withTiming(nextZoom, {
+      duration: 250,
+    });
+
+    savedZoom.value = nextZoom;
+
+    translateX.value = withTiming(
+      clampTranslation(
+        translateX.value,
+        renderedWidth,
+        mapSize.width,
+        nextZoom,
+      ),
+      { duration: 250 },
+    );
+
+    translateY.value = withTiming(
+      clampTranslation(
+        translateY.value,
+        renderedHeight,
+        mapSize.height,
+        nextZoom,
+      ),
+      { duration: 250 },
+    );
+
+    setIsFollowing(false);
   }
 
   // --------------------------------------------------
   // ROUTE DISPLAY
   // --------------------------------------------------
 
-  // Render the exact route returned by ORS. Do not shift its starting point
-  // using every GPS update; small GPS fluctuations can make the route appear
-  // to move even when the user is standing still.
   const routeDisplayPoints: ImagePoint[] = routeCoordinates.map(
-    ([longitude, latitude]) => gpsToImage(latitude, longitude),
+    ([longitude, latitude]) =>
+      gpsToImage(latitude, longitude),
   );
-  const hasOfflineWalkingRoute = isOfflineRoute && routeCoordinates.length >= 2;
+
+  const hasOfflineWalkingRoute =
+    isOfflineRoute && routeCoordinates.length >= 2;
 
   // --------------------------------------------------
   // ROUTE SEGMENT RENDERER
@@ -963,10 +1171,14 @@ export default function HomeScreen() {
       return null;
     }
 
-    const angle = (Math.atan2(dy, dx) * 180) / Math.PI;
+    const angle =
+      (Math.atan2(dy, dx) * 180) / Math.PI;
 
-    const middleX = ((pointA.x + pointB.x) / 2) * scale;
-    const middleY = ((pointA.y + pointB.y) / 2) * scale;
+    const middleX =
+      ((pointA.x + pointB.x) / 2) * scale;
+
+    const middleY =
+      ((pointA.y + pointB.y) / 2) * scale;
 
     return (
       <View
@@ -1033,12 +1245,19 @@ export default function HomeScreen() {
                 return null;
               }
 
-              return renderRouteSegment(point, nextPoint, `route-${index}`);
+              return renderRouteSegment(
+                point,
+                nextPoint,
+                `route-${index}`,
+              );
             })}
 
             {/* BUILDING MARKERS */}
-            {IMPORTANT_LOCATIONS.map((location) => {
-              const pixel = gpsToImage(location.latitude, location.longitude);
+            {visibleLocations.map((location) => {
+              const pixel = gpsToImage(
+                location.latitude,
+                location.longitude,
+              );
 
               if (
                 pixel.x < 0 ||
@@ -1050,7 +1269,8 @@ export default function HomeScreen() {
               }
 
               const isDestination =
-                isTracking && selectedLocation?.id === location.id;
+                isTracking &&
+                selectedLocation?.id === location.id;
 
               return (
                 <Pressable
@@ -1077,7 +1297,7 @@ export default function HomeScreen() {
               );
             })}
 
-            {/* GPS MARKER: INSIDE CAMPUS ONLY */}
+            {/* GPS MARKER */}
             {shouldShowGPSMarker && userPixel && (
               <View
                 pointerEvents="none"
@@ -1099,7 +1319,7 @@ export default function HomeScreen() {
         </GestureDetector>
       )}
 
-      {/* SEARCH BAR */}
+      {/* SEARCH BAR WITH BURGER MENU */}
       <View style={styles.searchContainer}>
         <View style={styles.searchBar}>
           <Text style={styles.searchIcon}>⌕</Text>
@@ -1114,7 +1334,9 @@ export default function HomeScreen() {
               setShowSearchResults(text.trim().length > 0);
             }}
             onFocus={() => {
-              setShowSearchResults(searchQuery.trim().length > 0);
+              setShowSearchResults(
+                searchQuery.trim().length > 0,
+              );
             }}
             autoCorrect={false}
             returnKeyType="search"
@@ -1130,80 +1352,98 @@ export default function HomeScreen() {
               <Text style={styles.clearSearch}>✕</Text>
             </Pressable>
           )}
+
+          <Pressable
+            style={styles.menuButton}
+            onPress={() => {
+              setShowCategoryFilters((current) => !current);
+              setShowSearchResults(false);
+            }}
+            accessibilityRole="button"
+            accessibilityLabel="Toggle category filters"
+          >
+            <Text style={styles.menuButtonText}>
+              {showCategoryFilters ? "✕" : "☰"}
+            </Text>
+          </Pressable>
         </View>
 
         {/* SEARCH RESULTS */}
-        {showSearchResults && searchQuery.trim().length > 0 && (
-          <View style={styles.searchResults}>
-            <ScrollView keyboardShouldPersistTaps="handled">
-              {searchResults.length > 0 ? (
-                searchResults.map((location) => (
-                  <Pressable
-                    key={location.id}
-                    style={styles.searchResultItem}
-                    onPress={() => selectLocation(location)}
+        {showSearchResults &&
+          searchQuery.trim().length > 0 && (
+            <View style={styles.searchResults}>
+              <ScrollView keyboardShouldPersistTaps="handled">
+                {searchResults.length > 0 ? (
+                  searchResults.map((location) => (
+                    <Pressable
+                      key={location.id}
+                      style={styles.searchResultItem}
+                      onPress={() => selectLocation(location)}
+                    >
+                      <View style={styles.resultNumber}>
+                        <Text style={styles.resultNumberText}>
+                          {location.id}
+                        </Text>
+                      </View>
+
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.resultBuilding}>
+                          {location.building}
+                        </Text>
+
+                        <Text style={styles.resultName}>
+                          {location.name}
+                        </Text>
+                      </View>
+                    </Pressable>
+                  ))
+                ) : (
+                  <Text style={styles.noResults}>
+                    No matching locations found.
+                  </Text>
+                )}
+              </ScrollView>
+            </View>
+          )}
+      </View>
+
+      {/* CATEGORY FILTERS */}
+      {showCategoryFilters && (
+        <View style={styles.categoryContainer}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.categoryList}
+          >
+            {availableCategories.map((category) => {
+              const active = selectedCategory === category;
+
+              return (
+                <Pressable
+                  key={category}
+                  style={[
+                    styles.categoryChip,
+                    active && styles.categoryChipActive,
+                  ]}
+                  onPress={() => {
+                    setSelectedCategory(category);
+                    setShowSearchResults(false);
+                  }}
+                >
+                  <Text
+                    style={[
+                      styles.categoryChipText,
+                      active && styles.categoryChipTextActive,
+                    ]}
                   >
-                    <View style={styles.resultNumber}>
-                      <Text style={styles.resultNumberText}>{location.id}</Text>
-                    </View>
-
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.resultBuilding}>
-                        {location.building}
-                      </Text>
-
-                      <Text style={styles.resultName}>{location.name}</Text>
-                    </View>
-                  </Pressable>
-                ))
-              ) : (
-                <Text style={styles.noResults}>
-                  No matching locations found.
-                </Text>
-              )}
-            </ScrollView>
-          </View>
-        )}
-      </View>
-
-      {/* GPS STATUS */}
-      <View
-        style={[
-          styles.status,
-          isInside === true
-            ? styles.insideStatus
-            : isInside === false
-              ? styles.outsideStatus
-              : styles.checkingStatus,
-        ]}
-      >
-        <Text style={styles.statusText}>{locationMessage}</Text>
-
-        {userLocation && (
-          <Text style={styles.coordinatesText}>
-            {userLocation.latitude.toFixed(6)},{" "}
-            {userLocation.longitude.toFixed(6)}
-          </Text>
-        )}
-
-        {userLocation?.accuracy != null && (
-          <Text style={styles.coordinatesText}>
-            GPS accuracy: about ±{Math.round(userLocation.accuracy)} m
-          </Text>
-        )}
-
-        {userLocation && isInside === false && (
-          <Text style={styles.coordinatesText}>
-            GPS marker hidden: outside campus perimeter.
-          </Text>
-        )}
-
-        {userLocation && isInside === true && !userIsVisible && (
-          <Text style={styles.coordinatesText}>
-            GPS marker hidden: outside displayed map image.
-          </Text>
-        )}
-      </View>
+                    {category}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+        </View>
+      )}
 
       <Text pointerEvents="none" style={styles.mapAttribution}>
         © OpenStreetMap contributors
@@ -1211,7 +1451,11 @@ export default function HomeScreen() {
 
       {/* MY LOCATION / FOLLOW */}
       <Pressable
-        style={[styles.followButton, isFollowing && styles.followButtonActive]}
+        style={[
+          styles.followButton,
+          selectedLocation && styles.followButtonAboveCard,
+          isFollowing && styles.followButtonActive,
+        ]}
         onPress={followMyLocation}
       >
         <Text
@@ -1225,111 +1469,256 @@ export default function HomeScreen() {
       </Pressable>
 
       {/* RESET */}
-      <Pressable style={styles.resetButton} onPress={resetMapPosition}>
+      <Pressable
+        style={[
+          styles.resetButton,
+          selectedLocation && styles.resetButtonAboveCard,
+        ]}
+        onPress={resetMapPosition}
+      >
         <Text style={styles.resetButtonText}>⟲</Text>
       </Pressable>
 
-      {/* SELECTED BUILDING CARD */}
-      {selectedLocation && (
-        <View style={styles.locationCard}>
-          <View style={styles.locationHeader}>
-            {selectedLocation.image ? (
-              <Image
-                source={selectedLocation.image}
-                style={styles.locationPhoto}
-                resizeMode="cover"
-              />
-            ) : (
-              <View style={styles.locationPhotoPlaceholder}>
-                <Text style={styles.locationPhotoPlaceholderIcon}>▧</Text>
-                <Text style={styles.locationPhotoPlaceholderText}>
-                  Photo slot
-                </Text>
-              </View>
-            )}
+      {/* ZOOM IN / ZOOM OUT */}
+      <View
+        style={[
+          styles.zoomControls,
+          selectedLocation && styles.zoomControlsAboveCard,
+        ]}
+      >
+        <Pressable
+          style={styles.zoomButton}
+          onPress={() => adjustZoom("in")}
+          accessibilityRole="button"
+          accessibilityLabel="Zoom in"
+        >
+          <Text style={styles.zoomButtonText}>+</Text>
+        </Pressable>
 
-            <View style={styles.locationTitleGroup}>
+        <Pressable
+          style={styles.zoomButton}
+          onPress={() => adjustZoom("out")}
+          accessibilityRole="button"
+          accessibilityLabel="Zoom out"
+        >
+          <Text style={styles.zoomButtonText}>−</Text>
+        </Pressable>
+      </View>
+
+      {/* SELECTED BUILDING BOTTOM SHEET */}
+      {selectedLocation && (
+        <Animated.View
+          style={[
+            styles.locationCard,
+            animatedSheetStyle,
+          ]}
+        >
+          {/* DRAG HANDLE */}
+          <GestureDetector gesture={sheetDragGesture}>
+            <Pressable
+              style={styles.sheetHandleContainer}
+              onPress={toggleSheet}
+            >
+              <View style={styles.sheetHandle} />
+
+              <Text style={styles.sheetDragHint}>
+                {sheetExpanded ? "⌄" : "⌃"}
+              </Text>
+            </Pressable>
+          </GestureDetector>
+
+          {/* BUILDING TITLE */}
+          <View style={styles.sheetHeader}>
+            <View style={styles.sheetTitleGroup}>
               <Text style={styles.locationBuilding}>
                 {selectedLocation.building}
               </Text>
 
-              <Text style={styles.locationName}>{selectedLocation.name}</Text>
+              <Text style={styles.locationName}>
+                {selectedLocation.name}
+              </Text>
+
+              {routeInfo && (
+                <Text style={styles.sheetTravelInfo}>
+                  {isOfflineRoute ? "Offline route" : "Walking route"} ·{" "}
+                  {(routeInfo.distance / 1000).toFixed(2)} km ·{" "}
+                  {Math.max(1, Math.round(routeInfo.duration / 60))} min
+                </Text>
+              )}
             </View>
+
+            <Pressable
+              style={styles.sheetCloseButton}
+              onPress={() => {
+                setSelectedLocation(null);
+                setSelectedInfoTab("Overview");
+                setSheetExpanded(false);
+              }}
+            >
+              <Text style={styles.sheetCloseText}>✕</Text>
+            </Pressable>
           </View>
 
-          <Text style={styles.locationDescription}>
-            {selectedLocation.description}
-          </Text>
-
-          {isTracking && routeInfo && (
-            <Text style={styles.routeInfoText}>
-              {hasOfflineWalkingRoute
-                ? "Saved campus walking route"
-                : isOfflineRoute
-                  ? "Offline straight-line distance only"
-                : "Walking route"}
-              : {(routeInfo.distance / 1000).toFixed(2)} km
-              {(!isOfflineRoute || hasOfflineWalkingRoute) && (
-                <>
-                  {" · "}
-                  {isOfflineRoute ? "~" : ""}
-                  {Math.max(1, Math.round(routeInfo.duration / 60))} min
-                </>
-              )}
-            </Text>
-          )}
-
-          {isTracking && isOfflineRoute && hasOfflineWalkingRoute && (
-            <Text style={styles.offlineRouteWarning}>
-              This route follows saved campus paths. If a marker is away from a
-              path, follow the nearest walkway to reach it.
-            </Text>
-          )}
-
-          {isTracking && isOfflineRoute && !hasOfflineWalkingRoute && (
-            <Text style={styles.offlineRouteWarning}>
-              No saved walking path connects your location to this destination.
-              This is only an approximate straight-line distance.
-            </Text>
-          )}
-
-          {isRerouting && (
-            <Text style={styles.reroutingText}>Updating walking route...</Text>
-          )}
-
-          {/* TRACK */}
-          <Pressable
-            style={[
-              styles.trackButton,
-              isLoadingRoute && styles.trackButtonDisabled,
-            ]}
-            onPress={startTracking}
-            disabled={isLoadingRoute}
-          >
-            <Text style={styles.trackButtonText}>
-              {isLoadingRoute
-                ? "Finding walking route..."
-                : isTracking
-                  ? "Refresh Route"
-                  : "Track"}
-            </Text>
-          </Pressable>
-
-          {/* STOP */}
-          {isTracking && (
-            <Pressable style={styles.stopTrackButton} onPress={stopTracking}>
-              <Text style={styles.stopTrackButtonText}>Stop Tracking</Text>
+          {/* ACTION BUTTONS */}
+          <View style={styles.sheetActions}>
+            <Pressable
+              style={styles.directionsButton}
+              onPress={startTracking}
+              disabled={isLoadingRoute}
+            >
+              <Text style={styles.directionsButtonText}>
+                ◆ Directions
+              </Text>
             </Pressable>
-          )}
 
-          {/* CLOSE */}
-          <Pressable
-            style={styles.closeButton}
-            onPress={() => setSelectedLocation(null)}
+            <Pressable
+              style={styles.startButton}
+              onPress={isTracking ? followMyLocation : startTracking}
+              disabled={isLoadingRoute}
+            >
+              <Text style={styles.startButtonText}>
+                ➤ Start
+              </Text>
+            </Pressable>
+
+            <Pressable
+              style={styles.moreButton}
+              onPress={() => {
+                setSelectedInfoTab("Details");
+                expandSheet();
+              }}
+            >
+              <Text style={styles.moreButtonText}>••• More</Text>
+            </Pressable>
+          </View>
+
+          {/* PHOTO GALLERY */}
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.sheetGallery}
+            contentContainerStyle={styles.sheetGalleryContent}
           >
-            <Text style={styles.closeButtonText}>Close</Text>
-          </Pressable>
-        </View>
+            {selectedLocation.image ? (
+              <Image
+                source={selectedLocation.image}
+                style={styles.sheetMainPhoto}
+                resizeMode="cover"
+              />
+            ) : (
+              <View style={styles.sheetMainPhotoPlaceholder}>
+                <Text style={styles.galleryPlaceholderIcon}>▧</Text>
+                <Text style={styles.galleryPlaceholderText}>
+                  Building photo
+                </Text>
+              </View>
+            )}
+
+            <View style={styles.sheetSidePhotos}>
+              <View style={styles.sheetSmallPhotoPlaceholder}>
+                <Text style={styles.galleryPlaceholderIcon}>▧</Text>
+              </View>
+
+              <View style={styles.sheetSmallPhotoPlaceholder}>
+                <Text style={styles.galleryPlaceholderIcon}>▧</Text>
+              </View>
+            </View>
+          </ScrollView>
+
+          {/* INFORMATION TABS */}
+          <View style={styles.sheetTabs}>
+            {(["Overview", "Details", "Photos"] as const).map((tab) => (
+              <Pressable
+                key={tab}
+                style={[
+                  styles.sheetTab,
+                  selectedInfoTab === tab && styles.sheetTabActive,
+                ]}
+                onPress={() => setSelectedInfoTab(tab)}
+              >
+                <Text
+                  style={[
+                    styles.sheetTabText,
+                    selectedInfoTab === tab && styles.sheetTabTextActive,
+                  ]}
+                >
+                  {tab}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+
+          {/* TAB CONTENT */}
+          <ScrollView
+            style={styles.sheetInformation}
+            showsVerticalScrollIndicator={false}
+          >
+            {selectedInfoTab === "Overview" && (
+              <View style={styles.sheetDescriptionRow}>
+                <Text style={styles.sheetInfoIcon}>ⓘ</Text>
+
+                <Text style={styles.sheetDescription}>
+                  {selectedLocation.description}
+                </Text>
+              </View>
+            )}
+
+            {selectedInfoTab === "Details" && (
+              <View style={styles.sheetDetails}>
+                <Text style={styles.sheetDetailText}>
+                  Building: {selectedLocation.building}
+                </Text>
+
+                <Text style={styles.sheetDetailText}>
+                  Name: {selectedLocation.name}
+                </Text>
+
+                <Text style={styles.sheetDetailText}>
+                  Category: {selectedLocation.category}
+                </Text>
+
+                <Text style={styles.sheetDetailText}>
+                  {selectedLocation.description}
+                </Text>
+              </View>
+            )}
+
+            {selectedInfoTab === "Photos" && (
+              <Text style={styles.sheetDetailText}>
+                Building photos will appear here when you add them.
+              </Text>
+            )}
+
+            {isLoadingRoute && (
+              <Text style={styles.sheetStatusText}>
+                Finding walking route...
+              </Text>
+            )}
+
+            {isRerouting && (
+              <Text style={styles.sheetStatusText}>
+                Updating walking route...
+              </Text>
+            )}
+
+            {isTracking && isOfflineRoute && (
+              <Text style={styles.sheetWarningText}>
+                Using a saved offline route where available.
+              </Text>
+            )}
+
+            {isTracking && (
+              <Pressable
+                style={styles.sheetStopButton}
+                onPress={stopTracking}
+              >
+                <Text style={styles.sheetStopButtonText}>
+                  Stop Tracking
+                </Text>
+              </Pressable>
+            )}
+          </ScrollView>
+        </Animated.View>
       )}
     </View>
   );
@@ -1340,6 +1729,62 @@ export default function HomeScreen() {
 // --------------------------------------------------
 
 const styles = StyleSheet.create({
+  // BURGER MENU
+  menuButton: {
+    width: 38,
+    height: 38,
+    alignItems: "center",
+    justifyContent: "center",
+    marginLeft: 8,
+    backgroundColor: "transparent",
+  },
+
+  menuButtonText: {
+    color: "#FFC900",
+    fontSize: 22,
+    fontWeight: "800",
+  },
+
+  // CATEGORY FILTERS
+  categoryContainer: {
+    position: "absolute",
+    top: 105,
+    left: 0,
+    right: 0,
+    zIndex: 9,
+  },
+
+  categoryList: {
+    paddingHorizontal: 16,
+    paddingVertical: 5,
+    gap: 8,
+  },
+
+  categoryChip: {
+    paddingHorizontal: 16,
+    paddingVertical: 9,
+    borderRadius: 22,
+    backgroundColor: "rgba(29, 29, 29, 0.96)",
+    borderWidth: 1,
+    borderColor: "#505050",
+  },
+
+  categoryChipActive: {
+    backgroundColor: "#FFC900",
+    borderColor: "#FFC900",
+  },
+
+  categoryChipText: {
+    color: "#F2F2F2",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+
+  categoryChipTextActive: {
+    color: "#171717",
+  },
+
+  // MAIN CONTAINER
   container: {
     flex: 1,
     backgroundColor: "#343434",
@@ -1355,7 +1800,7 @@ const styles = StyleSheet.create({
     height: "100%",
   },
 
-  // Walking route
+  // WALKING ROUTE
   routeSegment: {
     position: "absolute",
     height: 6,
@@ -1365,7 +1810,7 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
 
-  // Building markers
+  // BUILDING MARKERS
   buildingMarker: {
     position: "absolute",
     width: 30,
@@ -1399,7 +1844,7 @@ const styles = StyleSheet.create({
     color: "#111111",
   },
 
-  // GPS marker
+  // GPS MARKER
   gpsMarker: {
     position: "absolute",
     width: 22,
@@ -1421,7 +1866,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#F04452",
   },
 
-  // Search
+  // SEARCH
   searchContainer: {
     position: "absolute",
     top: 45,
@@ -1432,20 +1877,22 @@ const styles = StyleSheet.create({
 
   searchBar: {
     height: 52,
-    backgroundColor: "#1D1D1D",
+    backgroundColor: "rgba(29, 29, 29, 0.97)",
     borderWidth: 1,
-    borderColor: "#343434",
-    borderRadius: 14,
+    borderColor: "#555555",
+    borderRadius: 17,
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 15,
+    paddingHorizontal: 10,
     elevation: 6,
   },
 
   searchIcon: {
-    fontSize: 25,
+    fontSize: 28,
     color: "#FFC900",
     marginRight: 10,
+    marginLeft: 8,
+    marginTop: -7,
   },
 
   searchInput: {
@@ -1453,6 +1900,7 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: "#F2F2F2",
     height: "100%",
+    minWidth: 0,
   },
 
   clearSearch: {
@@ -1514,49 +1962,7 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
 
-  // GPS status
-  status: {
-    position: "absolute",
-    top: 110,
-    left: 20,
-    right: 20,
-    padding: 12,
-    borderRadius: 12,
-    elevation: 5,
-  },
-
-  insideStatus: {
-    backgroundColor: "#1D1D1D",
-    borderWidth: 1,
-    borderColor: "#FFC900",
-  },
-
-  outsideStatus: {
-    backgroundColor: "#2A191B",
-    borderWidth: 1,
-    borderColor: "#F04452",
-  },
-
-  checkingStatus: {
-    backgroundColor: "#1D1D1D",
-    borderWidth: 1,
-    borderColor: "#4A4A4A",
-  },
-
-  statusText: {
-    color: "#FFFFFF",
-    fontSize: 13,
-    fontWeight: "600",
-    textAlign: "center",
-  },
-
-  coordinatesText: {
-    color: "#FFFFFF",
-    fontSize: 11,
-    textAlign: "center",
-    marginTop: 5,
-  },
-
+  // MAP ATTRIBUTION
   mapAttribution: {
     position: "absolute",
     left: 10,
@@ -1568,11 +1974,11 @@ const styles = StyleSheet.create({
     zIndex: 6,
   },
 
-  // Follow button
+  // FOLLOW BUTTON
   followButton: {
     position: "absolute",
-    right: 18,
-    bottom: 90,
+    right: 350,
+    bottom: 92,
     width: 48,
     height: 48,
     borderRadius: 24,
@@ -1582,6 +1988,10 @@ const styles = StyleSheet.create({
     elevation: 7,
     borderWidth: 1,
     borderColor: "#4A4A4A",
+  },
+
+  followButtonAboveCard: {
+    bottom: 350,
   },
 
   followButtonActive: {
@@ -1599,10 +2009,10 @@ const styles = StyleSheet.create({
     color: "#111111",
   },
 
-  // Reset button
+  // RESET BUTTON
   resetButton: {
     position: "absolute",
-    right: 18,
+    right: 350,
     bottom: 30,
     width: 48,
     height: 48,
@@ -1613,149 +2023,342 @@ const styles = StyleSheet.create({
     elevation: 7,
   },
 
+  resetButtonAboveCard: {
+    bottom: 292,
+  },
+
   resetButtonText: {
     fontSize: 30,
     color: "#FFC900",
   },
 
-  // Building card
-  locationCard: {
+  // ZOOM CONTROLS
+  zoomControls: {
     position: "absolute",
-    bottom: 30,
-    left: 20,
-    right: 20,
+    right: 18,
+    bottom: 345,
+    alignItems: "center",
+    gap: 8,
+    zIndex: 10,
+  },
+
+  zoomControlsAboveCard: {
+    bottom: 410,
+  },
+
+  zoomButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 14,
     backgroundColor: "#1D1D1D",
     borderWidth: 1,
-    borderColor: "#343434",
-    padding: 18,
-    borderRadius: 16,
-    elevation: 8,
-    zIndex: 20,
-  },
-
-  locationHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-
-  locationPhoto: {
-    width: 88,
-    height: 88,
-    borderRadius: 10,
-    marginRight: 12,
-    backgroundColor: "#272727",
-  },
-
-  locationPhotoPlaceholder: {
-    width: 88,
-    height: 88,
-    borderRadius: 10,
-    marginRight: 12,
-    borderWidth: 1,
-    borderStyle: "dashed",
-    borderColor: "#5A5A5A",
-    backgroundColor: "#272727",
+    borderColor: "#4A4A4A",
     alignItems: "center",
     justifyContent: "center",
+    elevation: 7,
   },
 
-  locationPhotoPlaceholderIcon: {
-    fontSize: 26,
+  zoomButtonText: {
     color: "#FFC900",
+    fontSize: 28,
+    fontWeight: "600",
+    lineHeight: 32,
   },
 
-  locationPhotoPlaceholderText: {
-    fontSize: 10,
-    color: "#A6A6A6",
-    marginTop: 2,
+  // --------------------------------------------------
+  // SELECTED BUILDING BOTTOM SHEET
+  // --------------------------------------------------
+
+  locationCard: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: "#1D1D1D",
+    borderTopLeftRadius: 22,
+    borderTopRightRadius: 22,
+    borderWidth: 1,
+    borderBottomWidth: 0,
+    borderColor: "#555555",
+    paddingTop: 10,
+    paddingHorizontal: 14,
+    paddingBottom: 15,
+    elevation: 15,
+    zIndex: 20,
+    overflow: "hidden",
   },
 
-  locationTitleGroup: {
+  // DRAG HANDLE
+  sheetHandleContainer: {
+    width: "100%",
+    height: 30,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 5,
+  },
+
+  sheetHandle: {
+    width: 55,
+    height: 5,
+    borderRadius: 5,
+    backgroundColor: "#555555",
+  },
+
+  sheetDragHint: {
+    position: "absolute",
+    right: 8,
+    color: "#AAAAAA",
+    fontSize: 17,
+    fontWeight: "700",
+  },
+
+  // BUILDING HEADER
+  sheetHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 12,
+  },
+
+  sheetTitleGroup: {
     flex: 1,
+    paddingRight: 10,
   },
 
   locationBuilding: {
-    fontSize: 12,
-    color: "#FFC900",
+    fontSize: 15,
+    color: "#F2F2F2",
     fontWeight: "700",
   },
 
   locationName: {
-    fontSize: 18,
-    fontWeight: "700",
+    fontSize: 13,
+    fontWeight: "600",
     color: "#F2F2F2",
+    marginTop: 3,
+  },
+
+  sheetTravelInfo: {
+    color: "#AAAAAA",
+    fontSize: 10,
+    marginTop: 4,
+  },
+
+  sheetCloseButton: {
+    width: 35,
+    height: 35,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  sheetCloseText: {
+    color: "#F2F2F2",
+    fontSize: 24,
+  },
+
+  // ACTION BUTTONS
+  sheetActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 12,
+  },
+
+  directionsButton: {
+    flex: 1.3,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: "#FFC900",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  directionsButtonText: {
+    color: "#171717",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+
+  startButton: {
+    flex: 1,
+    height: 38,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#FFC900",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  startButtonText: {
+    color: "#FFC900",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+
+  moreButton: {
+    flex: 0.9,
+    height: 38,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#FFC900",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  moreButtonText: {
+    color: "#FFC900",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+
+  // PHOTO GALLERY
+  sheetGallery: {
+    height: 135,
+    flexGrow: 0,
+    marginBottom: 8,
+  },
+
+  sheetGalleryContent: {
+    gap: 8,
+  },
+
+  sheetMainPhoto: {
+    width: 260,
+    height: 135,
+    borderRadius: 12,
+    backgroundColor: "#303030",
+  },
+
+  sheetMainPhotoPlaceholder: {
+    width: 260,
+    height: 135,
+    borderRadius: 12,
+    backgroundColor: "#303030",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "#444444",
+  },
+
+  sheetSidePhotos: {
+    width: 100,
+    height: 135,
+    gap: 7,
+  },
+
+  sheetSmallPhotoPlaceholder: {
+    flex: 1,
+    borderRadius: 10,
+    backgroundColor: "#303030",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  galleryPlaceholderIcon: {
+    fontSize: 25,
+    color: "#FFC900",
+  },
+
+  galleryPlaceholderText: {
+    color: "#AAAAAA",
+    fontSize: 11,
     marginTop: 5,
   },
 
-  locationDescription: {
-    fontSize: 14,
-    color: "#A6A6A6",
-    marginTop: 8,
+  // INFORMATION TABS
+  sheetTabs: {
+    flexDirection: "row",
+    borderBottomWidth: 1,
+    borderBottomColor: "#555555",
+    marginHorizontal: -14,
+    paddingHorizontal: 14,
   },
 
-  routeInfoText: {
-    color: "#FFC900",
-    fontSize: 13,
-    fontWeight: "600",
-    marginTop: 12,
+  sheetTab: {
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderBottomWidth: 2,
+    borderBottomColor: "transparent",
   },
 
-  reroutingText: {
-    color: "#FFC900",
+  sheetTabActive: {
+    borderBottomColor: "#FFC900",
+  },
+
+  sheetTabText: {
     fontSize: 12,
-    fontWeight: "600",
-    marginTop: 8,
+    color: "#CCCCCC",
+    fontWeight: "500",
   },
 
-  offlineRouteWarning: {
-    color: "#FFD166",
-    fontSize: 12,
-    fontWeight: "600",
-    marginTop: 8,
-  },
-
-  trackButton: {
-    backgroundColor: "#FFC900",
-    borderRadius: 10,
-    paddingVertical: 13,
-    alignItems: "center",
-    marginTop: 16,
-  },
-
-  trackButtonDisabled: {
-    opacity: 0.6,
-  },
-
-  trackButtonText: {
-    color: "#111111",
-    fontSize: 15,
+  sheetTabTextActive: {
+    color: "#FFC900",
     fontWeight: "700",
   },
 
-  stopTrackButton: {
+  // INFORMATION CONTENT
+  sheetInformation: {
+    flex: 1,
+    marginTop: 12,
+  },
+
+  sheetDescriptionRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 9,
+    paddingBottom: 15,
+  },
+
+  sheetInfoIcon: {
+    color: "#FFC900",
+    fontSize: 17,
+  },
+
+  sheetDescription: {
+    flex: 1,
+    color: "#F2F2F2",
+    fontSize: 12,
+    lineHeight: 22,
+    textAlign: "justify",
+  },
+
+  sheetDetails: {
+    gap: 12,
+    paddingBottom: 15,
+  },
+
+  sheetDetailText: {
+    color: "#F2F2F2",
+    fontSize: 12,
+    lineHeight: 21,
+  },
+
+  sheetStatusText: {
+    color: "#FFC900",
+    fontSize: 12,
+    marginTop: 10,
+  },
+
+  sheetWarningText: {
+    color: "#FFD166",
+    fontSize: 11,
+    marginTop: 8,
+  },
+
+  sheetStopButton: {
     backgroundColor: "#2A191B",
     borderWidth: 1,
     borderColor: "#613037",
     borderRadius: 10,
-    paddingVertical: 11,
+    padding: 12,
     alignItems: "center",
-    marginTop: 8,
+    marginTop: 12,
+    marginBottom: 15,
   },
 
-  stopTrackButtonText: {
+  sheetStopButtonText: {
     color: "#FF8A94",
-    fontSize: 14,
     fontWeight: "700",
-  },
-
-  closeButton: {
-    alignItems: "center",
-    marginTop: 15,
-    padding: 10,
-  },
-
-  closeButtonText: {
-    color: "#FFC900",
-    fontWeight: "700",
+    fontSize: 12,
   },
 });
