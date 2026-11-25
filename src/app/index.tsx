@@ -1,4 +1,3 @@
-
 import * as Location from "expo-location";
 import { useEffect, useRef, useState } from "react";
 
@@ -34,6 +33,10 @@ import { MAP_IMAGE, gpsToImage } from "../constants/mapCalibration";
 import { getOfflineWalkingRoute } from "../services/offlineRouting";
 import { getWalkingRoute } from "../services/ors";
 
+import LocationBottomSheet, {
+  type InfoTab,
+} from "../components/location-bottom-sheet";
+
 // --------------------------------------------------
 // TYPES
 // --------------------------------------------------
@@ -66,8 +69,6 @@ type RouteRequestState = {
   destinationId: number | null;
 };
 
-type InfoTab = "Overview" | "Details" | "Rooms";
-
 type LoadingScreenProps = {
   mapReady: boolean;
   gpsReady: boolean;
@@ -96,23 +97,23 @@ const MAP_SPRING = {
 // --------------------------------------------------
 
 const SEARCH_ALIASES: Record<number, string[]> = {
-  1: ["IT", "CITC", "Information Technology", "Building 9"],
-  2: ["Nursing", "Building 28"],
-  3: ["Clinic", "Health Center", "Medical"],
-  4: ["Technology", "College of Technology"],
-  5: ["Big Foot"],
-  6: ["Gate", "Entrance", "Starting Point"],
-  7: ["Cafeteria", "Food", "Canteen"],
-  8: ["CEA", "Engineering", "Architecture"],
-  9: ["Movable Classroom", "Classroom"],
-  10: ["LRC", "Learning Resource Center", "Resource Center"],
-  11: ["SHS", "Senior High", "Senior High School"],
-  12: ["Building 41", "Science", "Science Complex"],
-  13: ["NSTP", "National Service Training Program"],
-  14: ["Culinary", "Culinary Building"],
-  15: ["Medicine", "College of Medicine"],
-  16: ["Lounge", "Student Lounge"],
-  17: ["DRER", "Gym", "Gymnasium", "DRER Memorial Hall"],
+  9: ["IT", "CITC", "Information Technology", "Building 9"],
+  28: ["Nursing", "Building 28", "Old Science Building"],
+  27: ["Clinic", "Health Center", "Medical"],
+  47: ["Technology", "College of Technology"],
+  40: ["Big Foot", "Mosquito Breeding"],
+  0: ["Gate", "Entrance", "Starting Point"],
+  20: ["Cafeteria", "Food", "Canteen"],
+  42: ["CEA", "Engineering", "Architecture"],
+  8: ["Movable Classroom", "Classroom"],
+  23: ["LRC", "Learning Resource Center", "Resource Center"],
+  14: ["SHS", "Senior High", "Senior High School", "Finance And Accounting", "Building 14"],
+  41: ["Building 41", "Science", "Science Complex"],
+  19: ["NSTP", "National Service Training Program"],
+  18: ["Culinary", "Culinary Building"],
+  3: ["Medicine", "College of Medicine", "Building 3", "COM"],
+  4: ["Lounge", "Student Lounge"],
+  16: ["DRER", "Gym", "Gymnasium", "DRER Memorial Hall"],
 };
 
 // --------------------------------------------------
@@ -530,7 +531,7 @@ export default function HomeScreen() {
   const [selectedInfoTab, setSelectedInfoTab] =
     useState<InfoTab>("Overview");
 
-  // BOTTOM SHEET
+  // BOTTOM SHEET STATE AND ANIMATION
   const [sheetExpanded, setSheetExpanded] = useState(false);
 
   const sheetHeight = useSharedValue(0);
@@ -1322,16 +1323,12 @@ export default function HomeScreen() {
   // --------------------------------------------------
 
   function selectSearchedLocation(location: CampusLocation) {
-    // Open the selected building's bottom sheet
     selectLocation(location);
 
-    // Highlight the selected building number
     setFocusedLocationId(location.id);
 
-    // Stop following GPS
     setIsFollowing(false);
 
-    // Make sure map dimensions are available
     if (
       !mapSize.width ||
       !mapSize.height ||
@@ -1342,24 +1339,20 @@ export default function HomeScreen() {
       return;
     }
 
-    // Get the exact building position on the map
     const pixel = gpsToImage(
       location.latitude,
       location.longitude,
     );
 
-    // Zoom closer to the selected building
     const targetZoom = Math.max(zoom.value, 2.2);
     const finalZoom = Math.min(4, targetZoom);
 
-    // Calculate the translation needed to focus on the building
     const targetX =
       -(pixel.x * scale - renderedWidth / 2) * finalZoom;
 
     const targetY =
-      -(pixel.y * scale - renderedHeight / 2) * finalZoom;
+      -(pixel.y * scale - renderedHeight * 0.47) * finalZoom;
 
-    // Animate zoom
     zoom.value = withTiming(finalZoom, {
       duration: 700,
       easing: Easing.out(Easing.cubic),
@@ -1367,7 +1360,6 @@ export default function HomeScreen() {
 
     savedZoom.value = finalZoom;
 
-    // Animate horizontal focus
     translateX.value = withTiming(
       clampTranslation(
         targetX,
@@ -1381,7 +1373,6 @@ export default function HomeScreen() {
       },
     );
 
-    // Animate vertical focus
     translateY.value = withTiming(
       clampTranslation(
         targetY,
@@ -1401,7 +1392,6 @@ export default function HomeScreen() {
   // --------------------------------------------------
 
   function selectMapMarker(location: CampusLocation) {
-    // Use the same behavior as selecting from search
     selectSearchedLocation(location);
   }
 
@@ -1935,224 +1925,42 @@ export default function HomeScreen() {
         </Pressable>
       </View>
 
-      {/* SELECTED BUILDING BOTTOM SHEET */}
+      {/* SELECTED BUILDING BOTTOM SHEET COMPONENT */}
       {selectedLocation && (
-        <Animated.View
-          style={[
-            styles.locationCard,
-            animatedSheetStyle,
-          ]}
-        >
-          {/* DRAG HANDLE */}
-          <GestureDetector gesture={sheetDragGesture}>
-            <Pressable
-              style={styles.sheetHandleContainer}
-              onPress={toggleSheet}
-            >
-              <View style={styles.sheetHandle} />
-
-              <Text style={styles.sheetDragHint}>
-                {sheetExpanded ? "" : ""}
-              </Text>
-            </Pressable>
-          </GestureDetector>
-
-          {/* BUILDING TITLE */}
-          <View style={styles.sheetHeader}>
-            <View style={styles.sheetTitleGroup}>
-              <Text style={styles.locationBuilding}>
-                {selectedLocation.building}
-              </Text>
-
-              <Text style={styles.locationName}>
-                {selectedLocation.name}
-              </Text>
-
-              {routeInfo && (
-                <Text style={styles.sheetTravelInfo}>
-                  {isOfflineRoute ? "Offline route" : "Walking route"} ·{" "}
-                  {(routeInfo.distance / 1000).toFixed(2)} km ·{" "}
-                  {Math.max(1, Math.round(routeInfo.duration / 60))} min
-                </Text>
-              )}
-            </View>
-
-            <Pressable
-              style={styles.sheetCloseButton}
-              onPress={() => {
-                setSelectedLocation(null);
-                setSelectedInfoTab("Overview");
-                setSheetExpanded(false);
-                setFocusedLocationId(null);
-
-                // Smoothly zoom out and return to the original map position
-                resetMapPosition();
-              }}
-            >
-              <Text style={styles.sheetCloseText}>✕</Text>
-            </Pressable>
-          </View>
-
-          {/* ACTION BUTTONS */}
-          <View style={styles.sheetActions}>
-            <Pressable
-              style={styles.directionsButton}
-              onPress={startTracking}
-              disabled={isLoadingRoute}
-            >
-              <Text style={styles.directionsButtonText}>
-                ◆ Directions
-              </Text>
-            </Pressable>
-
-            <Pressable
-              style={styles.startButton}
-              onPress={isTracking ? followMyLocation : startTracking}
-              disabled={isLoadingRoute}
-            >
-              <Text style={styles.startButtonText}>
-                ➤ Start
-              </Text>
-            </Pressable>
-
-            <Pressable
-              style={styles.moreButton}
-              onPress={() => {
-                setSelectedInfoTab("Details");
-                expandSheet();
-              }}
-            >
-              <Text style={styles.moreButtonText}>••• More</Text>
-            </Pressable>
-          </View>
-
-          {/* PHOTO GALLERY */}
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            style={styles.sheetGallery}
-            contentContainerStyle={styles.sheetGalleryContent}
-          >
-            {selectedLocation.image ? (
-              <Image
-                source={selectedLocation.image}
-                style={styles.sheetMainPhoto}
-                resizeMode="cover"
-              />
-            ) : (
-              <View style={styles.sheetMainPhotoPlaceholder}>
-                <Text style={styles.galleryPlaceholderIcon}>▧</Text>
-                <Text style={styles.galleryPlaceholderText}>
-                  Building photo
-                </Text>
-              </View>
-            )}
-
-            <View style={styles.sheetSidePhotos}>
-              <View style={styles.sheetSmallPhotoPlaceholder}>
-                <Text style={styles.galleryPlaceholderIcon}>▧</Text>
-              </View>
-
-              <View style={styles.sheetSmallPhotoPlaceholder}>
-                <Text style={styles.galleryPlaceholderIcon}>▧</Text>
-              </View>
-            </View>
-          </ScrollView>
-
-          {/* INFORMATION TABS */}
-          <View style={styles.sheetTabs}>
-            {(["Overview", "Details", "Rooms"] as const).map((tab) => (
-              <Pressable
-                key={tab}
-                style={[
-                  styles.sheetTab,
-                  selectedInfoTab === tab && styles.sheetTabActive,
-                ]}
-                onPress={() => setSelectedInfoTab(tab)}
-              >
-                <Text
-                  style={[
-                    styles.sheetTabText,
-                    selectedInfoTab === tab && styles.sheetTabTextActive,
-                  ]}
-                >
-                  {tab}
-                </Text>
-              </Pressable>
-            ))}
-          </View>
-
-          {/* TAB CONTENT */}
-          <ScrollView
-            style={styles.sheetInformation}
-            showsVerticalScrollIndicator={false}
-          >
-            {selectedInfoTab === "Overview" && (
-              <View style={styles.sheetDescriptionRow}>
-                <Text style={styles.sheetInfoIcon}>ⓘ</Text>
-
-                <Text style={styles.sheetDescription}>
-                  {selectedLocation.description}
-                </Text>
-              </View>
-            )}
-
-            {selectedInfoTab === "Details" && (
-              <View style={styles.sheetDetails}>
-                <Text style={styles.sheetDetailText}>
-                  Building: {selectedLocation.building}
-                </Text>
-
-                <Text style={styles.sheetDetailText}>
-                  Name: {selectedLocation.name}
-                </Text>
-
-                <Text style={styles.sheetDetailText}>
-                  Category: {selectedLocation.category}
-                </Text>
-
-                <Text style={styles.sheetDetailText}>
-                  {selectedLocation.description}
-                </Text>
-              </View>
-            )}
-
-            {selectedInfoTab === "Rooms" && (
-              <Text style={styles.sheetDetailText}>
-                Room information will appear here when you add room details.
-              </Text>
-            )}
-
-            {isLoadingRoute && (
-              <Text style={styles.sheetStatusText}>
-                Finding walking route...
-              </Text>
-            )}
-
-            {isRerouting && (
-              <Text style={styles.sheetStatusText}>
-                Updating walking route...
-              </Text>
-            )}
-
-            {isTracking && isOfflineRoute && (
-              <Text style={styles.sheetWarningText}>
-                Using a saved offline route where available.
-              </Text>
-            )}
-
-            {isTracking && (
-              <Pressable
-                style={styles.sheetStopButton}
-                onPress={stopTracking}
-              >
-                <Text style={styles.sheetStopButtonText}>
-                  Stop Tracking
-                </Text>
-              </Pressable>
-            )}
-          </ScrollView>
-        </Animated.View>
+        <LocationBottomSheet
+          selectedLocation={selectedLocation}
+          selectedInfoTab={selectedInfoTab}
+          routeInfo={routeInfo}
+          isOfflineRoute={isOfflineRoute}
+          isTracking={isTracking}
+          isLoadingRoute={isLoadingRoute}
+          isRerouting={isRerouting}
+          sheetExpanded={sheetExpanded}
+          animatedSheetStyle={animatedSheetStyle}
+          sheetDragGesture={sheetDragGesture}
+          onClose={() => {
+            setSelectedLocation(null);
+            setSelectedInfoTab("Overview");
+            setSheetExpanded(false);
+            setFocusedLocationId(null);
+            resetMapPosition();
+          }}
+          onToggleSheet={toggleSheet}
+          onStartTracking={startTracking}
+          onStartOrFollow={() => {
+            if (isTracking) {
+              followMyLocation();
+            } else {
+              startTracking();
+            }
+          }}
+          onMore={() => {
+            setSelectedInfoTab("Details");
+            expandSheet();
+          }}
+          onTabChange={setSelectedInfoTab}
+          onStopTracking={stopTracking}
+        />
       )}
 
       {/* NEW ANIMATED LOADING SCREEN */}
@@ -2397,7 +2205,7 @@ const styles = StyleSheet.create({
   },
 
   focusedBuildingMarkerText: {
-    color: "#171717",
+    color: "#150E3C",
     fontWeight: "900",
   },
 
@@ -2620,302 +2428,5 @@ const styles = StyleSheet.create({
     fontSize: 28,
     fontWeight: "600",
     lineHeight: 32,
-  },
-
-  // --------------------------------------------------
-  // SELECTED BUILDING BOTTOM SHEET
-  // --------------------------------------------------
-
-  locationCard: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: "#1D1D1D",
-    borderTopLeftRadius: 22,
-    borderTopRightRadius: 22,
-    borderWidth: 1,
-    borderBottomWidth: 0,
-    borderColor: "#555555",
-    paddingTop: 10,
-    paddingHorizontal: 14,
-    paddingBottom: 15,
-    elevation: 15,
-    zIndex: 20,
-    overflow: "hidden",
-  },
-
-  // DRAG HANDLE
-  sheetHandleContainer: {
-    width: "100%",
-    height: 30,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 5,
-  },
-
-  sheetHandle: {
-    width: 55,
-    height: 5,
-    borderRadius: 5,
-    backgroundColor: "#555555",
-  },
-
-  sheetDragHint: {
-    position: "absolute",
-    right: 8,
-    color: "#AAAAAA",
-    fontSize: 17,
-    fontWeight: "700",
-  },
-
-  // BUILDING HEADER
-  sheetHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 12,
-  },
-
-  sheetTitleGroup: {
-    flex: 1,
-    paddingRight: 10,
-  },
-
-  locationBuilding: {
-    fontSize: 15,
-    color: "#F2F2F2",
-    fontWeight: "700",
-  },
-
-  locationName: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#F2F2F2",
-    marginTop: 3,
-  },
-
-  sheetTravelInfo: {
-    color: "#AAAAAA",
-    fontSize: 10,
-    marginTop: 4,
-  },
-
-  sheetCloseButton: {
-    width: 35,
-    height: 35,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-
-  sheetCloseText: {
-    color: "#F2F2F2",
-    fontSize: 24,
-  },
-
-  // ACTION BUTTONS
-  sheetActions: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    marginBottom: 12,
-  },
-
-  directionsButton: {
-    flex: 1.3,
-    height: 38,
-    borderRadius: 12,
-    backgroundColor: "#FFC900",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-
-  directionsButtonText: {
-    color: "#171717",
-    fontSize: 12,
-    fontWeight: "700",
-  },
-
-  startButton: {
-    flex: 1,
-    height: 38,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#FFC900",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-
-  startButtonText: {
-    color: "#FFC900",
-    fontSize: 12,
-    fontWeight: "700",
-  },
-
-  moreButton: {
-    flex: 0.9,
-    height: 38,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#FFC900",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-
-  moreButtonText: {
-    color: "#FFC900",
-    fontSize: 12,
-    fontWeight: "700",
-  },
-
-  // PHOTO GALLERY
-  sheetGallery: {
-    height: 135,
-    flexGrow: 0,
-    marginBottom: 8,
-  },
-
-  sheetGalleryContent: {
-    gap: 8,
-  },
-
-  sheetMainPhoto: {
-    width: 260,
-    height: 135,
-    borderRadius: 12,
-    backgroundColor: "#303030",
-  },
-
-  sheetMainPhotoPlaceholder: {
-    width: 260,
-    height: 135,
-    borderRadius: 12,
-    backgroundColor: "#303030",
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
-    borderColor: "#444444",
-  },
-
-  sheetSidePhotos: {
-    width: 100,
-    height: 135,
-    gap: 7,
-  },
-
-  sheetSmallPhotoPlaceholder: {
-    flex: 1,
-    borderRadius: 10,
-    backgroundColor: "#303030",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-
-  galleryPlaceholderIcon: {
-    fontSize: 25,
-    color: "#FFC900",
-  },
-
-  galleryPlaceholderText: {
-    color: "#AAAAAA",
-    fontSize: 11,
-    marginTop: 5,
-  },
-
-  // INFORMATION TABS
-  sheetTabs: {
-    flexDirection: "row",
-    borderBottomWidth: 1,
-    borderBottomColor: "#555555",
-    marginHorizontal: -14,
-    paddingHorizontal: 14,
-  },
-
-  sheetTab: {
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderBottomWidth: 2,
-    borderBottomColor: "transparent",
-  },
-
-  sheetTabActive: {
-    borderBottomColor: "#FFC900",
-  },
-
-  sheetTabText: {
-    fontSize: 12,
-    color: "#CCCCCC",
-    fontWeight: "500",
-  },
-
-  sheetTabTextActive: {
-    color: "#FFC900",
-    fontWeight: "700",
-  },
-
-  // INFORMATION CONTENT
-  sheetInformation: {
-    flex: 1,
-    marginTop: 12,
-  },
-
-  sheetDescriptionRow: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 9,
-    paddingBottom: 15,
-  },
-
-  sheetInfoIcon: {
-    color: "#FFC900",
-    fontSize: 17,
-  },
-
-  sheetDescription: {
-    flex: 1,
-    color: "#F2F2F2",
-    fontSize: 12,
-    lineHeight: 22,
-    textAlign: "justify",
-  },
-
-  sheetDetails: {
-    gap: 12,
-    paddingBottom: 15,
-  },
-
-  sheetDetailText: {
-    color: "#F2F2F2",
-    fontSize: 12,
-    lineHeight: 21,
-  },
-
-  sheetStatusText: {
-    color: "#FFC900",
-    fontSize: 12,
-    marginTop: 10,
-  },
-
-  sheetWarningText: {
-    color: "#FFD166",
-    fontSize: 11,
-    marginTop: 8,
-  },
-
-  sheetStopButton: {
-    backgroundColor: "#2A191B",
-    borderWidth: 1,
-    borderColor: "#613037",
-    borderRadius: 10,
-    padding: 12,
-    alignItems: "center",
-    marginTop: 12,
-    marginBottom: 15,
-  },
-
-  sheetStopButtonText: {
-    color: "#FF8A94",
-    fontWeight: "700",
-    fontSize: 12,
   },
 });
