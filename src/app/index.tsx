@@ -1,3 +1,4 @@
+
 import * as Location from "expo-location";
 import { useEffect, useRef, useState } from "react";
 
@@ -224,7 +225,6 @@ function LoadingScreen({
       withTiming(1, { duration: 500 }),
     );
 
-    // FILL PROGRESS TO 90%
     progress.value = withDelay(
       800,
       withTiming(0.9, {
@@ -265,17 +265,14 @@ function LoadingScreen({
     );
   }, [isReady]);
 
-  // SCREEN STYLE
   const screenStyle = useAnimatedStyle(() => ({
     opacity: screenOpacity.value,
   }));
 
-  // CONTENT EXIT SCALE
   const contentStyle = useAnimatedStyle(() => ({
     transform: [{ scale: exitScale.value }],
   }));
 
-  // LOGO ANIMATION
   const logoStyle = useAnimatedStyle(() => ({
     opacity: logoIn.value,
     transform: [
@@ -286,7 +283,6 @@ function LoadingScreen({
     ],
   }));
 
-  // TITLE ANIMATION
   const titleStyle = useAnimatedStyle(() => ({
     opacity: titleIn.value,
     transform: [
@@ -296,7 +292,6 @@ function LoadingScreen({
     ],
   }));
 
-  // TAGLINE ANIMATION
   const taglineStyle = useAnimatedStyle(() => ({
     opacity: taglineIn.value,
     transform: [
@@ -306,19 +301,16 @@ function LoadingScreen({
     ],
   }));
 
-  // PROGRESS BAR CONTAINER
   const barContainerStyle = useAnimatedStyle(() => ({
     opacity: barIn.value,
   }));
 
-  // PROGRESS BAR FILL
   const barFillStyle = useAnimatedStyle(() => ({
     width: `${progress.value * 100}%`,
   }));
 
   return (
     <Animated.View style={[loadingStyles.screen, screenStyle]}>
-      {/* SOFT BACKGROUND GLOW */}
       <View
         pointerEvents="none"
         style={loadingStyles.glow}
@@ -327,7 +319,6 @@ function LoadingScreen({
       <Animated.View
         style={[loadingStyles.content, contentStyle]}
       >
-        {/* LOGO WITH RIPPLE ANIMATIONS */}
         <View style={loadingStyles.logoWrapper}>
           <Ring delay={0} />
           <Ring delay={870} />
@@ -340,21 +331,18 @@ function LoadingScreen({
           />
         </View>
 
-        {/* TITLE */}
         <Animated.Text
           style={[loadingStyles.title, titleStyle]}
         >
           TRAIL-IT
         </Animated.Text>
 
-        {/* TAGLINE */}
         <Animated.Text
           style={[loadingStyles.tagline, taglineStyle]}
         >
           Find your way around USTP
         </Animated.Text>
 
-        {/* PROGRESS BAR */}
         <Animated.View
           style={[
             loadingStyles.progressArea,
@@ -482,7 +470,6 @@ export default function HomeScreen() {
 
   const [showLoadingScreen, setShowLoadingScreen] = useState(true);
 
-  // ADJUST MINIMUM LOADING TIME HERE
   const LOADING_DURATION = 3000;
 
   useEffect(() => {
@@ -534,6 +521,10 @@ export default function HomeScreen() {
   // DESTINATION
   const [selectedLocation, setSelectedLocation] =
     useState<CampusLocation | null>(null);
+
+  // SEARCHED BUILDING HIGHLIGHT
+  const [focusedLocationId, setFocusedLocationId] =
+    useState<number | null>(null);
 
   // BUILDING INFORMATION TABS
   const [selectedInfoTab, setSelectedInfoTab] =
@@ -768,6 +759,40 @@ export default function HomeScreen() {
       { translateY: translateY.value },
       { scale: zoom.value },
     ],
+  }));
+
+  // --------------------------------------------------
+  // SELECTED BUILDING NUMBER ANIMATION
+  // --------------------------------------------------
+
+  const focusedMarkerScale = useSharedValue(1);
+
+  useEffect(() => {
+    if (focusedLocationId === null) {
+      focusedMarkerScale.value = withTiming(1);
+      return;
+    }
+
+    focusedMarkerScale.value = 1;
+
+    focusedMarkerScale.value = withRepeat(
+      withSequence(
+        withTiming(1.5, {
+          duration: 500,
+          easing: Easing.out(Easing.quad),
+        }),
+        withTiming(1, {
+          duration: 500,
+          easing: Easing.inOut(Easing.quad),
+        }),
+      ),
+      -1,
+      false,
+    );
+  }, [focusedLocationId]);
+
+  const focusedMarkerAnimatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: focusedMarkerScale.value }],
   }));
 
   // --------------------------------------------------
@@ -1214,7 +1239,6 @@ export default function HomeScreen() {
       );
     }
 
-    // START GPS AND FINISH INITIAL GPS CHECK
     startGPS().finally(() => {
       if (active) {
         setIsGPSReady(true);
@@ -1291,6 +1315,94 @@ export default function HomeScreen() {
     routeState.latestOrigin = null;
     routeState.latestDestination = null;
     routeState.destinationId = location.id;
+  }
+
+  // --------------------------------------------------
+  // SELECT SEARCH RESULT AND FOCUS ON BUILDING
+  // --------------------------------------------------
+
+  function selectSearchedLocation(location: CampusLocation) {
+    // Open the selected building's bottom sheet
+    selectLocation(location);
+
+    // Highlight the selected building number
+    setFocusedLocationId(location.id);
+
+    // Stop following GPS
+    setIsFollowing(false);
+
+    // Make sure map dimensions are available
+    if (
+      !mapSize.width ||
+      !mapSize.height ||
+      !scale ||
+      renderedWidth <= 0 ||
+      renderedHeight <= 0
+    ) {
+      return;
+    }
+
+    // Get the exact building position on the map
+    const pixel = gpsToImage(
+      location.latitude,
+      location.longitude,
+    );
+
+    // Zoom closer to the selected building
+    const targetZoom = Math.max(zoom.value, 2.2);
+    const finalZoom = Math.min(4, targetZoom);
+
+    // Calculate the translation needed to focus on the building
+    const targetX =
+      -(pixel.x * scale - renderedWidth / 2) * finalZoom;
+
+    const targetY =
+      -(pixel.y * scale - renderedHeight / 2) * finalZoom;
+
+    // Animate zoom
+    zoom.value = withTiming(finalZoom, {
+      duration: 700,
+      easing: Easing.out(Easing.cubic),
+    });
+
+    savedZoom.value = finalZoom;
+
+    // Animate horizontal focus
+    translateX.value = withTiming(
+      clampTranslation(
+        targetX,
+        renderedWidth,
+        mapSize.width,
+        finalZoom,
+      ),
+      {
+        duration: 700,
+        easing: Easing.out(Easing.cubic),
+      },
+    );
+
+    // Animate vertical focus
+    translateY.value = withTiming(
+      clampTranslation(
+        targetY,
+        renderedHeight,
+        mapSize.height,
+        finalZoom,
+      ),
+      {
+        duration: 700,
+        easing: Easing.out(Easing.cubic),
+      },
+    );
+  }
+
+  // --------------------------------------------------
+  // SELECT BUILDING MARKER AND FOCUS ON BUILDING
+  // --------------------------------------------------
+
+  function selectMapMarker(location: CampusLocation) {
+    // Use the same behavior as selecting from search
+    selectSearchedLocation(location);
   }
 
   // --------------------------------------------------
@@ -1584,27 +1696,33 @@ export default function HomeScreen() {
                 isTracking &&
                 selectedLocation?.id === location.id;
 
+              const isFocused =
+                focusedLocationId === location.id;
+
               return (
                 <Pressable
                   key={location.id}
                   style={[
                     styles.buildingMarker,
                     isDestination && styles.destinationMarker,
+                    isFocused && styles.focusedBuildingMarker,
                     {
                       left: pixel.x * scale - 15,
                       top: pixel.y * scale - 15,
                     },
                   ]}
-                  onPress={() => selectLocation(location)}
+                  onPress={() => selectMapMarker(location)}
                 >
-                  <Text
+                  <Animated.Text
                     style={[
                       styles.buildingMarkerText,
                       isDestination && styles.destinationMarkerText,
+                      isFocused && styles.focusedBuildingMarkerText,
+                      isFocused && focusedMarkerAnimatedStyle,
                     ]}
                   >
                     {location.id}
-                  </Text>
+                  </Animated.Text>
                 </Pressable>
               );
             })}
@@ -1690,7 +1808,7 @@ export default function HomeScreen() {
                     <Pressable
                       key={location.id}
                       style={styles.searchResultItem}
-                      onPress={() => selectLocation(location)}
+                      onPress={() => selectSearchedLocation(location)}
                     >
                       <View style={styles.resultNumber}>
                         <Text style={styles.resultNumberText}>
@@ -1865,6 +1983,10 @@ export default function HomeScreen() {
                 setSelectedLocation(null);
                 setSelectedInfoTab("Overview");
                 setSheetExpanded(false);
+                setFocusedLocationId(null);
+
+                // Smoothly zoom out and return to the original map position
+                resetMapPosition();
               }}
             >
               <Text style={styles.sheetCloseText}>✕</Text>
@@ -1995,7 +2117,6 @@ export default function HomeScreen() {
               </View>
             )}
 
-            {/* ROOMS TAB */}
             {selectedInfoTab === "Rooms" && (
               <Text style={styles.sheetDetailText}>
                 Room information will appear here when you add room details.
@@ -2256,6 +2377,15 @@ const styles = StyleSheet.create({
     borderRadius: 20,
   },
 
+  // SEARCHED BUILDING HIGHLIGHT
+  focusedBuildingMarker: {
+    backgroundColor: "#FFC900",
+    borderColor: "#FFFFFF",
+    borderWidth: 3,
+    elevation: 12,
+    zIndex: 20,
+  },
+
   buildingMarkerText: {
     color: "#FFC900",
     fontSize: 12,
@@ -2264,6 +2394,11 @@ const styles = StyleSheet.create({
 
   destinationMarkerText: {
     color: "#111111",
+  },
+
+  focusedBuildingMarkerText: {
+    color: "#171717",
+    fontWeight: "900",
   },
 
   // GPS MARKER
