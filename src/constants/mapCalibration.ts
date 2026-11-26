@@ -5,7 +5,7 @@ import { CAMPUS_BOUNDARY } from "./campusBoundary";
 export const MAP_IMAGE = {
   width: 6444,
   height: 6140,
-  source: require("../../assets/maps/School_Campus_map.png"),
+  source: require("../../assets/maps/School_campus_updated.png"),
 };
 
 const GEO_BOUNDS = {
