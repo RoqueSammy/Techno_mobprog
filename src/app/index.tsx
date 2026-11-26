@@ -501,6 +501,36 @@ export default function HomeScreen() {
   const [selectedCategory, setSelectedCategory] = useState("All");
   const [showCategoryFilters, setShowCategoryFilters] = useState(false);
 
+  // BURGER MENU ANIMATION
+  const menuProgress = useSharedValue(0);
+
+  useEffect(() => {
+    menuProgress.value = withTiming(showCategoryFilters ? 1 : 0, {
+      duration: 300,
+      easing: Easing.out(Easing.cubic),
+    });
+  }, [showCategoryFilters]);
+
+  const animatedCategoryStyle = useAnimatedStyle(() => ({
+    opacity: menuProgress.value,
+    transform: [
+      {
+        translateY: interpolate(menuProgress.value, [0, 1], [-15, 0]),
+      },
+      {
+        scale: interpolate(menuProgress.value, [0, 1], [0.96, 1]),
+      },
+    ],
+  }));
+
+  const animatedMenuIconStyle = useAnimatedStyle(() => ({
+    transform: [
+      {
+        rotate: `${interpolate(menuProgress.value, [0, 1], [0, 90])}deg`,
+      },
+    ],
+  }));
+
   const availableCategories = [
     "All",
     ...Array.from(
@@ -1782,9 +1812,11 @@ export default function HomeScreen() {
             accessibilityRole="button"
             accessibilityLabel="Toggle category filters"
           >
-            <Text style={styles.menuButtonText}>
+            <Animated.Text
+              style={[styles.menuButtonText, animatedMenuIconStyle]}
+            >
               {showCategoryFilters ? "✕" : "☰"}
-            </Text>
+            </Animated.Text>
           </Pressable>
         </View>
 
@@ -1828,8 +1860,10 @@ export default function HomeScreen() {
       </View>
 
       {/* CATEGORY FILTERS */}
-      {showCategoryFilters && (
-        <View style={styles.categoryContainer}>
+      <Animated.View
+        pointerEvents={showCategoryFilters ? "auto" : "none"}
+        style={[styles.categoryContainer, animatedCategoryStyle]}
+      >
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
@@ -1862,8 +1896,7 @@ export default function HomeScreen() {
               );
             })}
           </ScrollView>
-        </View>
-      )}
+      </Animated.View>
 
       <Text pointerEvents="none" style={styles.mapAttribution}>
         © OpenStreetMap contributors
@@ -2092,7 +2125,7 @@ const styles = StyleSheet.create({
 
   menuButtonText: {
     color: "#FFC900",
-    fontSize: 22,
+    fontSize: 18,
     fontWeight: "800",
   },
 

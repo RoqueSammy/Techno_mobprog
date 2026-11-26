@@ -104,8 +104,8 @@ export default function LocationBottomSheet({
             {selectedLocation.name}
           </Text>
 
-          <Text style={styles.locationBuilding}>
-            {selectedLocation.building}
+          <Text style={styles.locationAlias}>
+            {selectedLocation.alias}
           </Text>
 
           {routeInfo && (
@@ -347,7 +347,7 @@ const styles = StyleSheet.create({
     paddingRight: 10,
   },
 
-  locationBuilding: {
+  locationAlias: {
     fontSize: 13,
     color: "#F2F2F2",
     fontWeight: "600",

@@ -1,7 +1,8 @@
     const CAMPUS_LOCATIONS = [
       {
         id: 9,
-        building: "(CITC)",
+        building: "Building 9",
+        alias: "(COT)",
         name: "College of Information Technology",
         description: "College of Information Technology building.",
         latitude: 8.486292,
@@ -11,6 +12,7 @@
       {
         id: 28,
         building: "Building 28",
+        alias: "Old Science",
         name: "College of Nursing",
         description: "College of Nursing building.",
         latitude: 8.485971,
@@ -19,7 +21,8 @@
       },
       {
         id: 27,
-        building: "(OSA)",
+        building: "Building 27",
+        alias: "(OSA)",
         name: "Health Center/Office of Students Affairs",
         description: "University health clinic.",
         latitude: 8.485931,
@@ -28,7 +31,8 @@
       },
       {
         id: 47,
-        building: "(COT)",
+        building: "Building 47",
+        alias: "(COT)",
         name: "College of Technology",
         description: "College of Technology building.",
         latitude: 8.486796,
@@ -37,7 +41,8 @@
       },
       {
         id: 40,
-        building: "Mosquito Breeding",
+        building: "Student Facility",
+        alias: "Student Lounge",
         name: "Bit Foot",
         description: "Big Foot student facility.",
         latitude: 8.485318,
@@ -55,7 +60,7 @@
       },
       {
         id: 20,
-        building: "Cafeteria",
+        building: "Building 20",
         name: "USTP Cafeteria",
         description: "University cafeteria.",
         latitude: 8.485199,
@@ -64,7 +69,8 @@
       },
       {
         id: 42,
-        building: "(CEA)",
+        building: "Building 42",
+        alias: "(CEA)",
         name: "College of Engineering and Architecture",
         description: "College of Engineering and Architecture building.",
         latitude: 8.484796,
@@ -82,7 +88,8 @@
       },
       {
         id: 23,
-        building: "(LRC)",
+        building: "Building 23",
+        alias: "(LRC)",
         name: "Learning Resource Center",
         description: "Campus learning resource center.",
         latitude: 8.486702,
@@ -91,7 +98,7 @@
       },
       {
         id: 14,
-        building: "BLDG.14",
+        building: "Building 14",
         name: "Senior High/Finance And Accounting",
         description: "USTP senior high school building.",
         latitude: 8.486303,
@@ -100,7 +107,8 @@
       },
       {
         id: 41,
-        building: "(CSM)",
+        building: "Building 41",
+        alias: "(CSM)",
         name: "Science Complex",
         description: "Building 41 science complex.",
         latitude: 8.485584,
@@ -109,7 +117,7 @@
       },
       {
         id: 19,
-        building: "BLDG.19",
+        building: "Building 19",
         name: "NSTP Building",
         description: "National Service Training Program facility.",
         latitude: 8.485066,
@@ -118,7 +126,7 @@
       },
       {
         id: 18,
-        building: "BLDG.18",
+        building: "Building 18",
         name: "Culinary Building",
         description: "Campus culinary building.",
         latitude: 8.485369,
@@ -127,7 +135,8 @@
       },
       {
         id: 3,
-        building: "(COM)",
+        building: "Building 3",
+        alias: "(COM)",
         name: "College of Medicine",
         description: "College of Medicine building.",
         latitude: 8.485987,
@@ -136,7 +145,7 @@
       },
       {
         id: 4,
-        building: "",
+        building: "Student Lounge",
         name: "Student Lounge",
         description: "Campus student lounge.",
         latitude: 8.485289,
@@ -145,7 +154,8 @@
       },
       {
         id: 16,
-        building: "DRER / Gym",
+        building: "Gymnasium",
+        alias: "Gymnasium",
         name: "DRER Memorial Hall / Gym",
         description: "USTP gymnasium and DRER Memorial Hall.",
         latitude: 8.485833,
