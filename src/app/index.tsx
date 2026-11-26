@@ -45,6 +45,22 @@ import LoadingScreen from "../components/loading-screen";
 
 type CampusLocation = (typeof IMPORTANT_LOCATIONS)[number];
 
+function getCategoryColor(category?: string | null) {
+  const value = (category ?? "").toLowerCase();
+
+  if (value.includes("academic") || value.includes("education") || value.includes("college")) return "#4DA3FF";
+  if (value.includes("administrative") || value.includes("office") || value.includes("admin")) return "#B58BFF";
+  if (value.includes("health") || value.includes("clinic") || value.includes("medical")) return "#FF6B7A";
+  if (value.includes("food") || value.includes("cafeteria") || value.includes("dining")) return "#FF9F43";
+  if (value.includes("facility") || value.includes("utility") || value.includes("service")) return "#36C9A5";
+  if (value.includes("sports") || value.includes("recreation") || value.includes("gym")) return "#E879C7";
+  if (value.includes("entrance") || value.includes("gate")) return "#F4D35E";
+
+  const categoryPalette = ["#4DA3FF", "#B58BFF", "#FF6B7A", "#FF9F43", "#36C9A5", "#E879C7", "#5BC0BE"];
+  const categoryHash = [...value].reduce((total, character) => total + character.charCodeAt(0), 0);
+  return value ? categoryPalette[categoryHash % categoryPalette.length] : "#FFC900";
+}
+
 type GPSPoint = {
   latitude: number;
   longitude: number;
@@ -395,6 +411,30 @@ export default function HomeScreen() {
   const [showSearchResults, setShowSearchResults] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState("All");
   const [showCategoryFilters, setShowCategoryFilters] = useState(false);
+  const menuProgress = useSharedValue(0);
+  const menuTopLineStyle = useAnimatedStyle(() => ({
+    transform: [
+      { translateY: menuProgress.value * 7 },
+      { rotate: `${menuProgress.value * 45}deg` },
+    ],
+  }));
+  const menuMiddleLineStyle = useAnimatedStyle(() => ({
+    opacity: 1 - menuProgress.value,
+    transform: [{ scaleX: 1 - menuProgress.value }],
+  }));
+  const menuBottomLineStyle = useAnimatedStyle(() => ({
+    transform: [
+      { translateY: -menuProgress.value * 7 },
+      { rotate: `${menuProgress.value * -45}deg` },
+    ],
+  }));
+  const categoryPanelStyle = useAnimatedStyle(() => ({
+    opacity: menuProgress.value,
+    transform: [
+      { translateY: (1 - menuProgress.value) * -12 },
+      { scale: 0.98 + menuProgress.value * 0.02 },
+    ],
+  }));
   const [focusedLocationId, setFocusedLocationId] = useState<number | null>(null);
   const [selectedInfoTab, setSelectedInfoTab] = useState<InfoTab>("Overview");
   const [sheetExpanded, setSheetExpanded] = useState(false);
@@ -479,6 +519,16 @@ export default function HomeScreen() {
   // --------------------------------------------------
 
   const INITIAL_ZOOM = 1.35;
+
+  // ZOOM BUTTON VERTICAL POSITION
+  // Increase these values to move the zoom buttons UP.
+  // Decrease these values to move the zoom buttons DOWN.
+  const ZOOM_CONTROLS_BOTTOM = 300;
+  const ZOOM_CONTROLS_SHEET_GAP = 34;
+
+  // Extra vertical offset for the zoom buttons.
+  // Increase this number to move them UP; decrease it to move them DOWN.
+  const ZOOM_CONTROLS_VERTICAL_OFFSET = 70;
 
   const scale =
     mapSize.width > 0 && mapSize.height > 0
@@ -1417,6 +1467,67 @@ export default function HomeScreen() {
   }
 
   // --------------------------------------------------
+  // CLOSE LOCATION SHEET
+  // --------------------------------------------------
+
+  function finishClosingLocationSheet() {
+    setSelectedLocation(null);
+    setSelectedInfoTab("Overview");
+    setFocusedLocationId(null);
+    setSheetExpanded(false);
+  }
+
+  function closeLocationSheet() {
+    // Stop navigation first so an in-flight route cannot update the closed sheet.
+    stopTracking();
+    setIsFollowing(false);
+
+    selectedDestinationRef.current = null;
+
+    const routeState = routeRequestRef.current;
+    routeState.pending = false;
+    routeState.forceNext = false;
+    routeState.lastOrigin = null;
+    routeState.lastRequestTime = 0;
+    routeState.latestOrigin = null;
+    routeState.latestDestination = null;
+    routeState.destinationId = null;
+    routeState.preferredEntranceDestinationId = null;
+    routeState.preferredEntrance = null;
+    routeState.preferredEntranceOrigin = null;
+
+    // Slide the sheet down before unmounting it.
+    sheetHeight.value = withTiming(
+      0,
+      {
+        duration: 320,
+        easing: Easing.out(Easing.cubic),
+      },
+      (finished) => {
+        if (finished) {
+          runOnJS(finishClosingLocationSheet)();
+        }
+      },
+    );
+
+    // Smoothly return the map to its initial campus view.
+    zoom.value = withTiming(INITIAL_ZOOM, {
+      duration: 750,
+      easing: Easing.out(Easing.cubic),
+    });
+    savedZoom.value = INITIAL_ZOOM;
+
+    translateX.value = withTiming(0, {
+      duration: 750,
+      easing: Easing.out(Easing.cubic),
+    });
+    translateY.value = withTiming(0, {
+      duration: 750,
+      easing: Easing.out(Easing.cubic),
+    });
+  }
+
+  // --------------------------------------------------
   // START TRACKING
   // --------------------------------------------------
 
@@ -1548,16 +1659,22 @@ export default function HomeScreen() {
 
   function resetMapPosition() {
     setIsFollowing(false);
+    setFocusedLocationId(null);
 
-    // These imperative updates reset the Reanimated map gesture state.
-    // eslint-disable-next-line react-hooks/immutability
-    zoom.value = INITIAL_ZOOM;
+    zoom.value = withTiming(INITIAL_ZOOM, {
+      duration: 600,
+      easing: Easing.out(Easing.cubic),
+    });
     savedZoom.value = INITIAL_ZOOM;
 
-    // eslint-disable-next-line react-hooks/immutability
-    translateX.value = 0;
-    // eslint-disable-next-line react-hooks/immutability
-    translateY.value = 0;
+    translateX.value = withTiming(0, {
+      duration: 600,
+      easing: Easing.out(Easing.cubic),
+    });
+    translateY.value = withTiming(0, {
+      duration: 600,
+      easing: Easing.out(Easing.cubic),
+    });
   }
 
   // --------------------------------------------------
@@ -1691,6 +1808,7 @@ export default function HomeScreen() {
                   style={[
                     styles.buildingMarker,
                     location.markerSize === "small" && styles.smallBuildingMarker,
+                    { borderColor: getCategoryColor(location.category) },
                     isDestination && styles.destinationMarker,
                     isFocused && styles.focusedBuildingMarker,
                     {
@@ -1703,6 +1821,7 @@ export default function HomeScreen() {
                   <Animated.Text
                     style={[
                       styles.buildingMarkerText,
+                      { color: getCategoryColor(location.category) },
                       location.markerSize === "small" && styles.smallBuildingMarkerText,
                       isDestination && styles.destinationMarkerText,
                       isFocused && styles.focusedBuildingMarkerText,
@@ -1772,15 +1891,22 @@ export default function HomeScreen() {
           <Pressable
             style={styles.menuButton}
             onPress={() => {
-              setShowCategoryFilters((visible) => !visible);
+              const nextVisible = !showCategoryFilters;
+              setShowCategoryFilters(nextVisible);
+              menuProgress.value = withTiming(nextVisible ? 1 : 0, {
+                duration: 260,
+                easing: Easing.out(Easing.cubic),
+              });
               setShowSearchResults(false);
             }}
             accessibilityRole="button"
             accessibilityLabel="Toggle category filters"
           >
-            <Text style={styles.menuButtonText}>
-              {showCategoryFilters ? "✕" : "☰"}
-            </Text>
+            <View style={styles.menuIcon}>
+              <Animated.View style={[styles.menuIconLine, menuTopLineStyle]} />
+              <Animated.View style={[styles.menuIconLine, menuMiddleLineStyle]} />
+              <Animated.View style={[styles.menuIconLine, menuBottomLineStyle]} />
+            </View>
           </Pressable>
         </View>
 
@@ -1795,7 +1921,7 @@ export default function HomeScreen() {
                     style={styles.searchResultItem}
                     onPress={() => selectSearchedLocation(location)}
                   >
-                    <View style={styles.resultNumber}>
+                    <View style={[styles.resultNumber, { backgroundColor: getCategoryColor(location.category) }]}>
                       <Text style={styles.resultNumberText}>
                         {location.markerLabel}
                       </Text>
@@ -1820,8 +1946,10 @@ export default function HomeScreen() {
         )}
       </View>
 
-      {showCategoryFilters && (
-        <View style={styles.categoryContainer}>
+      <Animated.View
+        pointerEvents={showCategoryFilters ? "auto" : "none"}
+        style={[styles.categoryContainer, categoryPanelStyle]}
+      >
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
@@ -1853,8 +1981,7 @@ export default function HomeScreen() {
               );
             })}
           </ScrollView>
-        </View>
-      )}
+      </Animated.View>
 
       {/* GPS STATUS */}
       <View
@@ -1904,7 +2031,7 @@ export default function HomeScreen() {
       <Pressable
         style={[
           styles.followButton,
-          { bottom: selectedLocation ? (sheetExpanded ? expandedSheetHeight : collapsedSheetHeight) + 14 : 90 },
+          { bottom: 90 },
           isFollowing && styles.followButtonActive,
         ]}
         onPress={followMyLocation}
@@ -1923,7 +2050,7 @@ export default function HomeScreen() {
       <Pressable
         style={[
           styles.resetButton,
-          { bottom: selectedLocation ? (sheetExpanded ? expandedSheetHeight : collapsedSheetHeight) + 74 : 30 },
+          { bottom: 30 },
         ]}
         onPress={resetMapPosition}
       >
@@ -1933,7 +2060,10 @@ export default function HomeScreen() {
       <View
         style={[
           styles.zoomControls,
-          { bottom: selectedLocation ? (sheetExpanded ? expandedSheetHeight : collapsedSheetHeight) + 14 : 150 },
+          {
+            // Keep the zoom controls in a fixed position underneath the bottom sheet.
+            bottom: ZOOM_CONTROLS_BOTTOM + ZOOM_CONTROLS_VERTICAL_OFFSET,
+          },
         ]}
       >
         <Pressable
@@ -1968,12 +2098,7 @@ export default function HomeScreen() {
           sheetExpanded={sheetExpanded}
           animatedSheetStyle={animatedSheetStyle}
           sheetDragGesture={sheetDragGesture}
-          onClose={() => {
-            setSelectedLocation(null);
-            setSelectedInfoTab("Overview");
-            setFocusedLocationId(null);
-            setSheetExpanded(false);
-          }}
+          onClose={closeLocationSheet}
           onToggleSheet={toggleSheet}
           onStartTracking={startTracking}
           onStartOrFollow={() => {
@@ -1981,7 +2106,7 @@ export default function HomeScreen() {
             else void startTracking();
           }}
           onMore={() => {
-            setSelectedInfoTab("Details");
+            setSelectedInfoTab("Offices");
             expandSheet();
           }}
           onTabChange={setSelectedInfoTab}
@@ -2008,17 +2133,25 @@ export default function HomeScreen() {
 
 const styles = StyleSheet.create({
   menuButton: {
-    width: 38,
-    height: 38,
+    width: 35,
+    height: 35,
     alignItems: "center",
     justifyContent: "center",
     marginLeft: 8,
   },
 
-  menuButtonText: {
-    color: "#FFC900",
-    fontSize: 22,
-    fontWeight: "800",
+  menuIcon: {
+    width: 18,
+    height: 16,
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+
+  menuIconLine: {
+    width: 17,
+    height: 2,
+    borderRadius: 3,
+    backgroundColor: "#FFC900",
   },
 
   categoryContainer: {
@@ -2186,9 +2319,10 @@ const styles = StyleSheet.create({
   },
 
   searchIcon: {
-    fontSize: 25,
+    fontSize: 27,
     color: "#FFC900",
     marginRight: 10,
+    top: -3,
   },
 
   searchInput: {
@@ -2318,7 +2452,7 @@ const styles = StyleSheet.create({
   // Follow button
   followButton: {
     position: "absolute",
-    right: 18,
+    left: 18,
     bottom: 90,
     width: 48,
     height: 48,
@@ -2326,7 +2460,8 @@ const styles = StyleSheet.create({
     backgroundColor: "#1D1D1D",
     alignItems: "center",
     justifyContent: "center",
-    elevation: 7,
+    elevation: 5,
+    zIndex: 5,
     borderWidth: 1,
     borderColor: "#4A4A4A",
   },
@@ -2349,7 +2484,7 @@ const styles = StyleSheet.create({
   // Reset button
   resetButton: {
     position: "absolute",
-    right: 18,
+    left: 18,
     bottom: 30,
     width: 48,
     height: 48,
@@ -2357,7 +2492,8 @@ const styles = StyleSheet.create({
     backgroundColor: "#1D1D1D",
     alignItems: "center",
     justifyContent: "center",
-    elevation: 7,
+    elevation: 5,
+    zIndex: 5,
   },
 
   resetButtonText: {
@@ -2370,7 +2506,9 @@ const styles = StyleSheet.create({
     right: 18,
     alignItems: "center",
     gap: 8,
-    zIndex: 10,
+    // Lower stacking level: the location bottom sheet must cover these.
+    zIndex: 5,
+    elevation: 5,
   },
 
   zoomButton: {
