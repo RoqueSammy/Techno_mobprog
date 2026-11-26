@@ -1,0 +1,228 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>USTP Map Landmark Picker</title>
+    <style>
+      :root { color-scheme: dark; font-family: system-ui, sans-serif; }
+      * { box-sizing: border-box; }
+      body { margin: 0; background: #11151b; color: #f2f3f5; }
+      main { max-width: 1200px; margin: 0 auto; padding: 16px; }
+      h1 { margin: 0 0 6px; font-size: 22px; }
+      p { margin: 0 0 14px; color: #c2c8d0; line-height: 1.45; }
+      .layout { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 14px; }
+      .panel { min-width: 0; border: 1px solid #303844; border-radius: 12px; background: #1b212a; padding: 12px; }
+      #viewer { position: relative; height: min(76vh, 850px); min-height: 420px; overflow: hidden; border-radius: 8px; background: #080a0d; touch-action: none; cursor: crosshair; }
+      #map { position: absolute; left: 0; top: 0; max-width: none; transform-origin: 0 0; user-select: none; -webkit-user-drag: none; }
+      #crosshair { display: none; position: absolute; width: 24px; height: 24px; border: 2px solid #ffcc00; border-radius: 50%; transform: translate(-50%, -50%); pointer-events: none; box-shadow: 0 0 0 2px #111; }
+      #crosshair::before, #crosshair::after { content: ""; position: absolute; background: #ffcc00; }
+      #crosshair::before { width: 2px; height: 34px; left: 9px; top: -7px; }
+      #crosshair::after { height: 2px; width: 34px; top: 9px; left: -7px; }
+      .controls { display: flex; justify-content: space-between; gap: 8px; margin-top: 9px; color: #c2c8d0; font-size: 13px; }
+      label { display: block; margin: 10px 0 4px; font-size: 13px; color: #d7dbe1; }
+      input, button, textarea { width: 100%; border: 1px solid #3d4652; border-radius: 8px; background: #12171e; color: #fff; padding: 10px; font: inherit; }
+      button { margin-top: 9px; border: 0; background: #ffcc00; color: #171717; font-weight: 700; cursor: pointer; }
+      button.secondary { border: 1px solid #3d4652; background: #262e39; color: white; }
+      button:disabled { opacity: .45; cursor: default; }
+      #selected { margin: 10px 0; color: #ffdc4c; font-size: 13px; min-height: 36px; }
+      #rows { max-height: 210px; overflow: auto; padding-left: 20px; color: #d8dde4; font-size: 12px; }
+      textarea { height: 130px; margin-top: 8px; font: 11px ui-monospace, monospace; }
+      .error { color: #ff9a9a; }
+      @media (max-width: 760px) {
+        main { padding: 10px; }
+        .layout { grid-template-columns: 1fr; }
+        #viewer { height: 60vh; min-height: 320px; }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>USTP map landmark picker</h1>
+      <p>Zoom in, click the exact spot on the map, then enter that same spot’s latitude and longitude. Drag to pan; use the mouse wheel or zoom buttons.</p>
+      <div class="layout">
+        <section class="panel">
+          <div id="viewer" aria-label="Map image picker">
+            <img id="map" src="../assets/maps/School_Campus_map.png" alt="Current USTP campus map" />
+            <div id="crosshair"></div>
+          </div>
+          <div class="controls"><span id="dimensions">Loading map image…</span><span><button id="zoomOut" class="secondary" style="width:auto;margin:0;padding:4px 12px">−</button> <button id="zoomIn" class="secondary" style="width:auto;margin:0;padding:4px 12px">+</button> Zoom</span></div>
+        </section>
+        <section class="panel">
+          <strong>Selected image point</strong>
+          <div id="selected">Click a landmark on the map.</div>
+          <label for="suggested">Saved GPS points</label>
+          <select id="suggested">
+            <option value="">No saved building points</option>
+          </select>
+          <label for="name">Landmark name</label>
+          <input id="name" placeholder="Example: southwest road corner" />
+          <label for="lat">Latitude</label>
+          <input id="lat" inputmode="decimal" placeholder="Latitude" />
+          <label for="lon">Longitude</label>
+          <input id="lon" inputmode="decimal" placeholder="Longitude" />
+          <button id="save" disabled>Save this reference point</button>
+          <button id="download" class="secondary">Download reference points</button>
+          <button id="clear" class="secondary">Clear saved points</button>
+          <ol id="rows"></ol>
+          <textarea id="json" readonly aria-label="Saved reference points JSON"></textarea>
+        </section>
+      </div>
+    </main>
+    <script>
+      (() => {
+        const viewer = document.getElementById('viewer');
+        const map = document.getElementById('map');
+        const crosshair = document.getElementById('crosshair');
+        const selected = document.getElementById('selected');
+        const saveButton = document.getElementById('save');
+        const dimensions = document.getElementById('dimensions');
+        const nameInput = document.getElementById('name');
+        const suggested = document.getElementById('suggested');
+        const latInput = document.getElementById('lat');
+        const lonInput = document.getElementById('lon');
+        const rows = document.getElementById('rows');
+        const json = document.getElementById('json');
+        let fitScale = 1;
+        let zoom = 1;
+        let offsetX = 0;
+        let offsetY = 0;
+        let picked = null;
+        let drag = null;
+        let moved = false;
+        localStorage.removeItem('ustp-map-reference-points');
+        let points = [];
+
+        function render() {
+          const naturalW = map.naturalWidth;
+          const naturalH = map.naturalHeight;
+          if (!naturalW || !naturalH) return;
+          const box = viewer.getBoundingClientRect();
+          fitScale = Math.min(box.width / naturalW, box.height / naturalH);
+          map.style.width = `${naturalW * fitScale}px`;
+          map.style.height = `${naturalH * fitScale}px`;
+          map.style.transform = `translate(${offsetX}px, ${offsetY}px) scale(${zoom})`;
+          dimensions.textContent = `Image: ${naturalW} × ${naturalH} px · Zoom ${zoom.toFixed(1)}×`;
+          if (picked) placeCrosshair();
+          renderSavedMarkers();
+        }
+        function placeCrosshair() {
+          const sx = picked.x * fitScale * zoom + offsetX;
+          const sy = picked.y * fitScale * zoom + offsetY;
+          crosshair.style.display = 'block';
+          crosshair.style.left = `${sx}px`;
+          crosshair.style.top = `${sy}px`;
+        }
+        function refreshList() {
+          rows.replaceChildren(...points.map((point, index) => {
+            const item = document.createElement('li');
+            item.textContent = `${point.name}: ${point.latitude}, ${point.longitude} → x ${point.x.toFixed(1)}, y ${point.y.toFixed(1)} px`;
+            item.title = `Reference ${index + 1}`;
+            return item;
+          }));
+          json.value = JSON.stringify({ image: { width: map.naturalWidth, height: map.naturalHeight }, referencePoints: points }, null, 2);
+          localStorage.setItem('ustp-map-reference-points', JSON.stringify(points));
+          renderSavedMarkers();
+        }
+        function renderSavedMarkers() {
+          viewer.querySelectorAll('.saved-marker').forEach((marker) => marker.remove());
+          for (const point of points) {
+            const marker = document.createElement('div');
+            marker.className = 'saved-marker';
+            marker.title = point.name;
+            marker.style.cssText = `position:absolute;left:${point.x * fitScale * zoom}px;top:${point.y * fitScale * zoom}px;width:12px;height:12px;border:2px solid white;border-radius:50%;background:#29d17d;transform:translate(-50%,-50%);pointer-events:none;z-index:2;box-shadow:0 0 0 2px #111`;
+            viewer.append(marker);
+          }
+        }
+        function zoomAt(clientX, clientY, factor) {
+          const box = viewer.getBoundingClientRect();
+          const x = clientX - box.left;
+          const y = clientY - box.top;
+          const next = Math.max(1, Math.min(8, zoom * factor));
+          const ratio = next / zoom;
+          offsetX = x - (x - offsetX) * ratio;
+          offsetY = y - (y - offsetY) * ratio;
+          zoom = next;
+          render();
+        }
+        map.addEventListener('load', () => { render(); refreshList(); });
+        map.addEventListener('error', () => { dimensions.innerHTML = '<span class="error">Could not load the map. Open this HTML from the project folder.</span>'; });
+        new ResizeObserver(render).observe(viewer);
+        viewer.addEventListener('wheel', (event) => { event.preventDefault(); zoomAt(event.clientX, event.clientY, event.deltaY < 0 ? 1.2 : 1 / 1.2); }, { passive: false });
+        viewer.addEventListener('pointerdown', (event) => {
+          drag = { x: event.clientX, y: event.clientY, ox: offsetX, oy: offsetY };
+          moved = false;
+          viewer.setPointerCapture(event.pointerId);
+        });
+        viewer.addEventListener('pointermove', (event) => {
+          if (!drag) return;
+          const dx = event.clientX - drag.x;
+          const dy = event.clientY - drag.y;
+          if (Math.abs(dx) + Math.abs(dy) > 4) moved = true;
+          if (moved) { offsetX = drag.ox + dx; offsetY = drag.oy + dy; render(); }
+        });
+        viewer.addEventListener('pointerup', (event) => {
+          if (!drag) return;
+          if (!moved) {
+            const box = viewer.getBoundingClientRect();
+            const naturalW = map.naturalWidth;
+            const naturalH = map.naturalHeight;
+            const x = (event.clientX - box.left - offsetX) / (fitScale * zoom);
+            const y = (event.clientY - box.top - offsetY) / (fitScale * zoom);
+            if (x >= 0 && y >= 0 && x <= naturalW && y <= naturalH) {
+              picked = { x, y };
+              selected.textContent = `x ${x.toFixed(1)} px, y ${y.toFixed(1)} px`;
+              saveButton.disabled = false;
+              placeCrosshair();
+            }
+          }
+          drag = null;
+        });
+        function zoomFromCenter(factor) {
+          const box = viewer.getBoundingClientRect();
+          zoomAt(box.left + box.width / 2, box.top + box.height / 2, factor);
+        }
+        document.getElementById('zoomIn').addEventListener('click', () => zoomFromCenter(1.35));
+        document.getElementById('zoomOut').addEventListener('click', () => zoomFromCenter(1 / 1.35));
+        saveButton.addEventListener('click', () => {
+          const latitude = Number(latInput.value);
+          const longitude = Number(lonInput.value);
+          if (!picked || !nameInput.value.trim() || !Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+            selected.textContent = 'Add a name and valid latitude/longitude first.';
+            return;
+          }
+          points.push({ name: nameInput.value.trim(), latitude, longitude, x: Number(picked.x.toFixed(2)), y: Number(picked.y.toFixed(2)) });
+          nameInput.value = '';
+          latInput.value = '';
+          lonInput.value = '';
+          picked = null;
+          crosshair.style.display = 'none';
+          selected.textContent = 'Saved. Pick the next landmark.';
+          saveButton.disabled = true;
+          refreshList();
+        });
+        suggested.addEventListener('change', () => {
+          if (!suggested.value) return;
+          const point = JSON.parse(suggested.value);
+          nameInput.value = point.name;
+          latInput.value = point.latitude;
+          lonInput.value = point.longitude;
+        });
+        document.getElementById('download').addEventListener('click', () => {
+          const blob = new Blob([json.value], { type: 'application/json' });
+          const link = document.createElement('a');
+          link.href = URL.createObjectURL(blob);
+          link.download = 'ustp-map-reference-points.json';
+          link.click();
+          URL.revokeObjectURL(link.href);
+        });
+        document.getElementById('clear').addEventListener('click', () => {
+          points = [];
+          refreshList();
+        });
+        window.addEventListener('resize', render);
+        if (map.complete && map.naturalWidth) { render(); refreshList(); }
+      })();
+    </script>
+  </body>
+</html>

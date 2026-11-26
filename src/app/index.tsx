@@ -1,4 +1,5 @@
 import * as Location from "expo-location";
+import { useNetworkState } from "expo-network";
 import { useEffect, useRef, useState } from "react";
 
 import {
@@ -15,16 +16,28 @@ import {
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 
 import Animated, {
+  Easing,
   runOnJS,
   useAnimatedStyle,
   useSharedValue,
+  withRepeat,
+  withSequence,
+  withSpring,
+  withTiming,
 } from "react-native-reanimated";
 
 import { CAMPUS_BOUNDARY } from "../constants/campusBoundary";
-import { IMPORTANT_LOCATIONS } from "../constants/importantLocations";
+import {
+  CAMPUS_STUDENT_GATE,
+  IMPORTANT_LOCATIONS,
+} from "../constants/importantLocations";
 import { MAP_IMAGE, gpsToImage } from "../constants/mapCalibration";
 import { getOfflineWalkingRoute } from "../services/offlineRouting";
 import { getWalkingRoute } from "../services/ors";
+import LocationBottomSheet, {
+  type InfoTab,
+} from "../components/location-bottom-sheet";
+import LoadingScreen from "../components/loading-screen";
 
 // --------------------------------------------------
 // TYPES
@@ -56,33 +69,135 @@ type RouteRequestState = {
   latestOrigin: GPSPoint | null;
   latestDestination: CampusLocation | null;
   destinationId: number | null;
+  preferredEntranceDestinationId: number | null;
+  preferredEntrance: GPSPoint | null;
+  preferredEntranceOrigin: GPSPoint | null;
 };
 
-const MIN_REROUTE_DISTANCE_METERS = 15;
-const MIN_REROUTE_INTERVAL_MS = 8_000;
+// Keep the route start close to a moving GPS marker without rerouting on every
+// small GPS wobble. Emulator steps and walking updates are often only a few m.
+const MIN_REROUTE_DISTANCE_METERS = 1;
+const MIN_REROUTE_INTERVAL_MS = 1_000;
+const ENTRANCE_RESELECT_DISTANCE_METERS = 15;
+const LOADING_DURATION = 3_000;
+const SHEET_SPRING = { damping: 24, stiffness: 180, mass: 0.8 };
 
 // --------------------------------------------------
 // SEARCH ALIASES
 // --------------------------------------------------
 
 const SEARCH_ALIASES: Record<number, string[]> = {
-  1: ["IT", "CITC", "Information Technology", "Building 9"],
-  2: ["Nursing", "Building 28"],
-  3: ["Clinic", "Health Center", "Medical"],
-  4: ["Technology", "College of Technology"],
-  5: ["Big Foot"],
-  6: ["Gate", "Entrance", "Starting Point"],
-  7: ["Cafeteria", "Food", "Canteen"],
-  8: ["CEA", "Engineering", "Architecture"],
-  9: ["Movable Classroom", "Classroom"],
-  10: ["LRC", "Learning Resource Center", "Resource Center"],
-  11: ["SHS", "Senior High", "Senior High School"],
-  12: ["Building 41", "Science", "Science Complex"],
-  13: ["NSTP", "National Service Training Program"],
-  14: ["Culinary", "Culinary Building"],
-  15: ["Medicine", "College of Medicine"],
-  16: ["Lounge", "Student Lounge"],
-  17: ["DRER", "Gym", "Gymnasium", "DRER Memorial Hall"],
+  1: ["National Service Training Program"],
+  2: ["Culinary Building"],
+  3: ["Engineering", "Building 43", "Engineering Complex II"],
+  4: ["Engineering", "Building 42", "Performing Arts Theater", "Performing Arts Theatre", "PAT"],
+  5: ["Food", "Canteen"],
+  6: [
+    "CITC",
+    "CITC 9",
+    "Building 9",
+    "Information Technology",
+    "Computing",
+    "Technology",
+  ],
+  7: ["Medicine"],
+  8: ["Classroom"],
+  9: ["LRC", "Resource Center"],
+  10: ["Cashier", "Display Center", "Building 14"],
+  11: ["DRER", "Memorial Hall", "Sports Hall"],
+  12: ["Nursing", "Building 28"],
+  13: ["Health Center", "Building 27"],
+  14: ["Engineering", "Building 24"],
+  15: ["Technology", "College of Technology", "Building 47", "COT"],
+  16: ["Food", "Innovation", "Building 26"],
+  17: ["Food", "Innovation", "Building 25"],
+  18: ["SHS", "Senior High School", "Building 14"],
+  19: ["Administration", "Admin"],
+  20: ["Big Foot", "Student Lounge"],
+  21: ["Engineering", "Old Engineering", "Building 5"],
+  22: ["Dorm", "Dormitory", "Building 51"],
+  23: ["Mechanical Lab", "Laboratory Shop", "Building 45"],
+  24: ["CEA Deans Office", "Dean's Office", "Deans Office", "Dean", "CEA"],
+  25: ["43-101", "Room 43-101", "CEA Accreditation Room", "Geodetic Engineering"],
+  26: ["43-102", "Room 43-102", "CEA Accreditation Room", "Geodetic Engineering"],
+  27: ["Field", "Campus Open Field"],
+  60: ["Science Complex", "Science", "Building 41", "Bldg 41"],
+  61: ["Research Director", "Office of Research Director", "OR Director"],
+  62: ["Research Office", "Office of Research"],
+  63: ["42-102", "EE Laboratory", "EE Lab", "IGIS"],
+  64: ["Engineering and Architecture Library", "TEA Library", "Room 43-201", "43-201"],
+  65: ["42-201", "Mechanical Engineering Laboratory", "Mechanical Engineering Lab"],
+  66: ["42-202", "Laboratory"],
+  67: ["42-203", "Diode Applications Trainer", "Diode Applications Trainer Laboratory"],
+  68: ["42-301"],
+  69: ["42-302"],
+  70: ["42-303"],
+  71: ["42-304"],
+  72: ["42-401"],
+  73: ["42-402"],
+  74: ["42-403"],
+  75: ["42-404"],
+  76: ["42-501"],
+  77: ["42-502"],
+  78: ["42-503"],
+  79: ["42-504"],
+  80: ["41-101", "Room 41-101", "Guidance and Counseling", "Guidance & Counseling Services"],
+  81: ["41-102", "Room 41-102", "Admissions", "Admission Testing Unit"],
+  82: ["41-103", "Laboratory", "Lab Room 41-103"],
+  83: ["41-105", "Room 41-105", "CSM CON Library", "CSM/CON Library"],
+  84: ["Admission Scholarship Office", "Admissions and Scholarship"],
+  85: ["Vice Chancellor Academic Affairs", "Office of the Vice Chancellor"],
+  86: ["41-201", "Instruments Laboratory", "Instruments Lab 1"],
+  87: ["41-202", "Instruments Laboratory", "Microbiological Testing Laboratory", "Antibacterial Assay"],
+  88: ["41-203", "Laboratory Room 41-203"],
+  89: ["41-204", "Center for Research Advanced Science", "CRAS"],
+  90: ["41-205", "Instruments Laboratory", "Instruments Lab"],
+  91: ["41-206", "Clinical Chemistry", "Clinical Chemistry Laboratory"],
+  92: ["41-301", "Physics Lab 1", "Physics Laboratory 1"],
+  93: ["41-302", "Physics Instrument Room", "Instrument Room"],
+  94: ["41-303", "Physics Lab 2", "Physics Laboratory 2"],
+  95: ["41-304", "Physics Laboratory"],
+  96: ["41-305", "FST Stockroom", "Food Science and Technology Stockroom"],
+  97: ["41-306", "FST Research Laboratory", "Food Science and Technology Research Laboratory"],
+  98: ["41-401", "Lecture Room 41-401", "Mathematics Lecture Room"],
+  99: ["41-402", "EST Laboratory"],
+  100: ["41-403", "Laboratory Room 41-403"],
+  101: ["41-404", "Environmental Science Laboratory", "Environmental Science Lab"],
+  102: ["41-405", "Food Preparation Laboratory", "Food Prep Lab"],
+  103: ["41-406"],
+  104: ["41-407", "EST Department", "FST Department", "EST and FST Departments"],
+  105: ["41-501", "Chemistry Department", "Chemistry Dept"],
+  106: ["41-502", "Stock Room 41-502", "Stockroom 41-502"],
+  107: ["41-503", "Chemical Storage", "Stock Room 41-503", "Stockroom 41-503"],
+  108: ["41-504", "Chemistry Laboratory", "Chemistry Lab"],
+  109: ["41-505"],
+  110: ["41-506"],
+  111: ["Dispensing Room"],
+  112: ["Faculty Office", "Department of Information Technology", "CITC Faculty"],
+  113: ["ICT Audio Visual Room", "Audio Visual Room", "AV Room"],
+  114: ["Digital Transformation", "DT Office"],
+  115: ["CITC Collabrary", "Collabrary", "CITC Library"],
+  116: ["9-401", "Room 9-401"],
+  117: ["9-402", "Room 9-402"],
+  118: ["9-403", "Room 9-403"],
+  119: ["9-404", "Room 9-404"],
+  120: ["CITC Lab", "Laboratory", "Rooms 9-301 to 9-309"],
+  121: ["9-301", "Room 9-301"],
+  122: ["9-302", "Room 9-302"],
+  123: ["9-303", "Room 9-303"],
+  124: ["9-304", "Room 9-304"],
+  125: ["9-305", "Room 9-305"],
+  126: ["9-306", "Room 9-306"],
+  127: ["9-307", "Room 9-307"],
+  128: ["9-308", "Room 9-308"],
+  129: ["9-309", "Room 9-309"],
+  130: ["9-101", "Room 9-101", "Career Center"],
+  131: ["9-102", "Room 9-102", "Speech Laboratory", "Speech Lab"],
+  132: ["9-103", "Room 9-103"],
+  133: ["9-104", "Room 9-104", "Office of the Dean", "Dean's Office"],
+  134: ["9-105", "Room 9-105", "Lecture Room", "International Affairs Office"],
+  135: ["Student Lounge", "North Student Lounge"],
+  136: ["Student Lounge", "South Student Lounge"],
 };
 
 // --------------------------------------------------
@@ -103,6 +218,57 @@ function calculateDistance(a: GPSPoint, b: GPSPoint) {
     Math.cos(lat1) * Math.cos(lat2) * Math.sin(deltaLon / 2) ** 2;
 
   return earthRadius * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
+}
+
+function getRouteDestination(destination: CampusLocation, origin: GPSPoint) {
+  const buildingPoint = {
+    latitude: destination.latitude,
+    longitude: destination.longitude,
+  };
+
+  if (destination.routeEntrances.length === 0) {
+    return {
+      point: buildingPoint,
+      buildingPoint,
+      hasConfirmedEntrance: false,
+      offlineRoute: null,
+    };
+  }
+
+  const options = destination.routeEntrances.map((point) => ({
+    point,
+    route: getOfflineWalkingRoute(origin, point, true),
+  }));
+  const reachableOptions = options.filter(
+    (option): option is typeof option & { route: NonNullable<typeof option.route> } =>
+      option.route !== null,
+  );
+  const bestOption = reachableOptions.reduce<(typeof reachableOptions)[number] | null>(
+    (best, option) =>
+      !best ||
+      option.route.distance + calculateDistance(option.point, buildingPoint) <
+        best.route.distance + calculateDistance(best.point, buildingPoint)
+        ? option
+        : best,
+    null,
+  );
+
+  if (bestOption) {
+    return {
+      point: bestOption.point,
+      buildingPoint,
+      hasConfirmedEntrance: true,
+      offlineRoute: bestOption.route,
+    };
+  }
+
+  const point = destination.routeEntrances.reduce((closest, entrance) =>
+    calculateDistance(origin, entrance) < calculateDistance(origin, closest)
+      ? entrance
+      : closest,
+  );
+
+  return { point, buildingPoint, hasConfirmedEntrance: true, offlineRoute: null };
 }
 
 // --------------------------------------------------
@@ -163,11 +329,51 @@ function isInsideCampus(longitude: number, latitude: number) {
   return inside;
 }
 
+// Use the perimeter only as a safety check for an on-campus route. It never
+// contributes vertices or edges to the walking graph or displayed route.
+function routeStaysInsideCampus(coordinates: [number, number][]) {
+  if (coordinates.length < 2) return false;
+
+  for (let index = 0; index < coordinates.length - 1; index += 1) {
+    const [startLongitude, startLatitude] = coordinates[index];
+    const [endLongitude, endLatitude] = coordinates[index + 1];
+    const start = { latitude: startLatitude, longitude: startLongitude };
+    const end = { latitude: endLatitude, longitude: endLongitude };
+    const steps = Math.max(1, Math.ceil(calculateDistance(start, end) / 5));
+
+    for (let step = 0; step <= steps; step += 1) {
+      const ratio = step / steps;
+      const latitude = startLatitude + (endLatitude - startLatitude) * ratio;
+      const longitude = startLongitude + (endLongitude - startLongitude) * ratio;
+      if (!isInsideCampus(longitude, latitude)) return false;
+    }
+  }
+
+  return true;
+}
+
 // --------------------------------------------------
 // MAIN SCREEN
 // --------------------------------------------------
 
 export default function HomeScreen() {
+  const networkState = useNetworkState();
+  const isInternetReachable = networkState.isInternetReachable === true;
+
+  const [isMapLoaded, setIsMapLoaded] = useState(false);
+  const [isGPSReady, setIsGPSReady] = useState(false);
+  const [isMinimumLoadingTimeComplete, setIsMinimumLoadingTimeComplete] =
+    useState(false);
+  const [showLoadingScreen, setShowLoadingScreen] = useState(true);
+
+  useEffect(() => {
+    const timer = setTimeout(
+      () => setIsMinimumLoadingTimeComplete(true),
+      LOADING_DURATION,
+    );
+    return () => clearTimeout(timer);
+  }, []);
+
   // GPS
   const [userLocation, setUserLocation] =
     useState<Location.LocationObjectCoords | null>(null);
@@ -187,6 +393,49 @@ export default function HomeScreen() {
   // SEARCH
   const [searchQuery, setSearchQuery] = useState("");
   const [showSearchResults, setShowSearchResults] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState("All");
+  const [showCategoryFilters, setShowCategoryFilters] = useState(false);
+  const [focusedLocationId, setFocusedLocationId] = useState<number | null>(null);
+  const [selectedInfoTab, setSelectedInfoTab] = useState<InfoTab>("Overview");
+  const [sheetExpanded, setSheetExpanded] = useState(false);
+
+  const availableCategories = [
+    "All",
+    ...Array.from(
+      new Set(
+        IMPORTANT_LOCATIONS.map((location) => location.category).filter(
+          (category): category is string => Boolean(category),
+        ),
+      ),
+    ),
+  ];
+  const visibleLocations =
+    selectedCategory === "All"
+      ? IMPORTANT_LOCATIONS
+      : IMPORTANT_LOCATIONS.filter(
+          (location) => location.category === selectedCategory,
+        );
+
+  const sheetHeight = useSharedValue(0);
+  const sheetDragStart = useSharedValue(0);
+  const sheetDragCurrent = useSharedValue(0);
+  const collapsedSheetHeight = mapSize.height * 0.43;
+  const expandedSheetHeight = mapSize.height * 0.85;
+
+  function expandSheet() {
+    setSheetExpanded(true);
+    sheetHeight.value = withSpring(expandedSheetHeight, SHEET_SPRING);
+  }
+
+  function collapseSheet() {
+    setSheetExpanded(false);
+    sheetHeight.value = withSpring(collapsedSheetHeight, SHEET_SPRING);
+  }
+
+  function toggleSheet() {
+    if (sheetExpanded) collapseSheet();
+    else expandSheet();
+  }
 
   // DESTINATION
   const [selectedLocation, setSelectedLocation] =
@@ -198,6 +447,8 @@ export default function HomeScreen() {
   );
 
   const [routeInfo, setRouteInfo] = useState<RouteSummary | null>(null);
+  const [routeInstructions, setRouteInstructions] = useState<string[]>([]);
+  const [routeError, setRouteError] = useState<string | null>(null);
   const [isOfflineRoute, setIsOfflineRoute] = useState(false);
 
   const [isTracking, setIsTracking] = useState(false);
@@ -218,6 +469,9 @@ export default function HomeScreen() {
     latestOrigin: null,
     latestDestination: null,
     destinationId: null,
+    preferredEntranceDestinationId: null,
+    preferredEntrance: null,
+    preferredEntranceOrigin: null,
   });
 
   // --------------------------------------------------
@@ -315,12 +569,77 @@ export default function HomeScreen() {
 
   const mapGesture = Gesture.Simultaneous(panGesture, pinchGesture);
 
+  useEffect(() => {
+    if (!selectedLocation || mapSize.height <= 0) return;
+    sheetHeight.value = withSpring(
+      mapSize.height * (sheetExpanded ? 0.85 : 0.43),
+      SHEET_SPRING,
+    );
+  }, [mapSize.height, selectedLocation, sheetExpanded, sheetHeight]);
+
+  const sheetDragGesture = Gesture.Pan()
+    .activeOffsetY([-8, 8])
+    .failOffsetX([-20, 20])
+    .onBegin(() => {
+      sheetDragStart.value = sheetHeight.value;
+      sheetDragCurrent.value = sheetHeight.value;
+    })
+    .onUpdate((event) => {
+      const nextHeight = Math.max(
+        collapsedSheetHeight,
+        Math.min(
+          expandedSheetHeight,
+          sheetDragStart.value - event.translationY,
+        ),
+      );
+      sheetDragCurrent.value = nextHeight;
+      // eslint-disable-next-line react-hooks/immutability
+      sheetHeight.value = nextHeight;
+    })
+    .onEnd((event) => {
+      const shouldExpand =
+        sheetDragCurrent.value >
+          (collapsedSheetHeight + expandedSheetHeight) / 2 ||
+        event.velocityY < -500;
+      // eslint-disable-next-line react-hooks/immutability
+      sheetHeight.value = withSpring(
+        shouldExpand ? expandedSheetHeight : collapsedSheetHeight,
+        SHEET_SPRING,
+      );
+      runOnJS(setSheetExpanded)(shouldExpand);
+    });
+
+  const animatedSheetStyle = useAnimatedStyle(() => ({
+    height: sheetHeight.value,
+  }));
+
   const animatedMapStyle = useAnimatedStyle(() => ({
     transform: [
       { translateX: translateX.value },
       { translateY: translateY.value },
       { scale: zoom.value },
     ],
+  }));
+
+  const focusedMarkerScale = useSharedValue(1);
+  useEffect(() => {
+    if (focusedLocationId === null) {
+      focusedMarkerScale.value = withTiming(1);
+      return;
+    }
+    focusedMarkerScale.value = 1;
+    focusedMarkerScale.value = withRepeat(
+      withSequence(
+        withTiming(1.5, { duration: 500, easing: Easing.out(Easing.quad) }),
+        withTiming(1, { duration: 500, easing: Easing.inOut(Easing.quad) }),
+      ),
+      -1,
+      false,
+    );
+  }, [focusedLocationId, focusedMarkerScale]);
+
+  const focusedMarkerAnimatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: focusedMarkerScale.value }],
   }));
 
   // --------------------------------------------------
@@ -333,7 +652,14 @@ export default function HomeScreen() {
 
   const gpsAccuracyDiameter = Math.max(
     22,
-    Math.min(90, (userLocation?.accuracy ?? 8) * 3.9565 * scale * 2),
+    Math.min(
+      90,
+      (userLocation?.accuracy ?? 8) *
+        3.9565 *
+        (MAP_IMAGE.width / 2048) *
+        scale *
+        2,
+    ),
   );
   const gpsAccuracyRadius = gpsAccuracyDiameter / 2;
 
@@ -484,17 +810,44 @@ export default function HomeScreen() {
 
         state.lastRequestTime = Date.now();
 
-        const destinationPoint: GPSPoint = {
-          latitude: requestDestination.latitude,
-          longitude: requestDestination.longitude,
-        };
-        const offlineFallbackRoute = getOfflineWalkingRoute(
+        const routeDestination = getRouteDestination(
+          requestDestination,
           requestOrigin,
-          destinationPoint,
         );
+        let destinationPoint = routeDestination.point;
+        const originInsideCampus = isInsideCampus(
+          requestOrigin.longitude,
+          requestOrigin.latitude,
+        );
+        const destinationInsideCampus = isInsideCampus(
+          routeDestination.buildingPoint.longitude,
+          routeDestination.buildingPoint.latitude,
+        );
+        const isCampusToCampusRoute =
+          originInsideCampus && destinationInsideCampus;
+        const rawOfflineFallbackRoute =
+          routeDestination.offlineRoute ??
+          getOfflineWalkingRoute(
+            requestOrigin,
+            destinationPoint,
+            routeDestination.hasConfirmedEntrance,
+          );
+        // Keep the route on traced walkways. A straight line from the walkway
+        // to a building marker can cross a wall, so only a surveyed entrance
+        // may be used as the route endpoint.
+        const candidateOfflineRoute = rawOfflineFallbackRoute;
+        const offlineFallbackRoute =
+          candidateOfflineRoute &&
+          (!isCampusToCampusRoute ||
+            routeStaysInsideCampus(candidateOfflineRoute.coordinates))
+            ? candidateOfflineRoute
+            : null;
+        const hasSavedCampusRoute =
+          offlineFallbackRoute !== null &&
+          offlineFallbackRoute.coordinates.length >= 2;
 
-        // Show the saved campus route immediately. If the online route succeeds,
-        // it replaces this path; if the device is offline, this path remains.
+        // Show the saved route immediately while an online route is requested;
+        // it remains the fallback if the network service is unavailable.
         if (
           offlineFallbackRoute &&
           offlineFallbackRoute.coordinates.length >= 2 &&
@@ -517,18 +870,167 @@ export default function HomeScreen() {
           setIsRerouting(true);
         }
 
-        try {
-          const start: [number, number] = [
-            requestOrigin.longitude,
-            requestOrigin.latitude,
-          ];
+        // Use surveyed campus routes when available while offline. With an
+        // internet connection, request a pedestrian route for campus trips too.
+        if (!isInternetReachable) {
+          if (
+            state.destinationId === requestDestination.id &&
+            selectedDestinationRef.current?.id === requestDestination.id &&
+            isTrackingRef.current
+          ) {
+            if (hasSavedCampusRoute && offlineFallbackRoute) {
+              setRouteCoordinates(offlineFallbackRoute.coordinates);
+              setRouteInfo({
+                distance: offlineFallbackRoute.distance,
+                duration: offlineFallbackRoute.distance / 1.2,
+              });
+              setRouteInstructions([]);
+              setRouteError(null);
+              setIsOfflineRoute(true);
+            } else {
+              setRouteCoordinates([]);
+              setRouteInfo(null);
+              setRouteInstructions([]);
+              setRouteError("No saved route is available offline. Connect to the internet and try again.");
+              setIsOfflineRoute(true);
+            }
 
-          const end: [number, number] = [
-            requestDestination.longitude,
-            requestDestination.latitude,
-          ];
+            state.lastOrigin = requestOrigin;
+          }
+        } else {
+          try {
+            const start: [number, number] = [
+              requestOrigin.longitude,
+              requestOrigin.latitude,
+            ];
 
-          const data = await getWalkingRoute(start, end);
+            const end: [number, number] = [
+              destinationPoint.longitude,
+              destinationPoint.latitude,
+            ];
+
+            let data: Awaited<ReturnType<typeof getWalkingRoute>>;
+            const cachedEntrance =
+              state.preferredEntranceDestinationId === requestDestination.id &&
+              state.preferredEntranceOrigin &&
+              calculateDistance(state.preferredEntranceOrigin, requestOrigin) <
+                ENTRANCE_RESELECT_DISTANCE_METERS
+                ? state.preferredEntrance
+                : null;
+
+            if (requestDestination.routeEntrances.length && !cachedEntrance) {
+              const candidates = await Promise.allSettled(
+                requestDestination.routeEntrances.map(async (entrance) => {
+                  const entranceCoordinate: [number, number] = [
+                    entrance.longitude,
+                    entrance.latitude,
+                  ];
+                  const coordinates: [number, number][] =
+                    !originInsideCampus && destinationInsideCampus
+                      ? [
+                          start,
+                          [
+                            CAMPUS_STUDENT_GATE.longitude,
+                            CAMPUS_STUDENT_GATE.latitude,
+                          ] as [number, number],
+                          entranceCoordinate,
+                        ]
+                      : [start, entranceCoordinate];
+                  const candidateData = await getWalkingRoute(coordinates);
+                  const candidateFeature = candidateData.features?.[0];
+                  const candidateGeometry = candidateFeature?.geometry
+                    ?.coordinates as [number, number][] | undefined;
+                  const lastCoordinate = candidateGeometry?.[
+                    (candidateGeometry?.length ?? 0) - 1
+                  ];
+
+                  if (
+                    !candidateGeometry ||
+                    candidateGeometry.length < 2 ||
+                    !lastCoordinate
+                  ) {
+                    throw new Error("ORS returned an invalid entrance route.");
+                  }
+                  if (
+                    isCampusToCampusRoute &&
+                    !routeStaysInsideCampus(candidateGeometry)
+                  ) {
+                    throw new Error(
+                      "The walking route leaves the campus boundary.",
+                    );
+                  }
+
+                  const destinationSnapDistance = calculateDistance(
+                    { latitude: lastCoordinate[1], longitude: lastCoordinate[0] },
+                    entrance,
+                  );
+                  const routeDistance = Number(
+                    candidateFeature.properties?.summary?.distance ??
+                      Number.POSITIVE_INFINITY,
+                  );
+
+                  return {
+                    entrance,
+                    data: candidateData,
+                    userDistance: calculateDistance(requestOrigin, entrance),
+                    routeScore: routeDistance + destinationSnapDistance,
+                    destinationSnapDistance,
+                  };
+                }),
+              );
+              const reachableCandidates = candidates
+                .filter(
+                  (candidate): candidate is PromiseFulfilledResult<{
+                    entrance: GPSPoint;
+                    data: Awaited<ReturnType<typeof getWalkingRoute>>;
+                    userDistance: number;
+                    routeScore: number;
+                    destinationSnapDistance: number;
+                  }> => candidate.status === "fulfilled",
+                )
+                .map((candidate) => candidate.value)
+                .filter(
+                  (candidate) =>
+                    Number.isFinite(candidate.userDistance) &&
+                    Number.isFinite(candidate.routeScore) &&
+                    candidate.destinationSnapDistance <= 35,
+                )
+                .sort(
+                  (a, b) =>
+                    a.userDistance - b.userDistance ||
+                    a.routeScore - b.routeScore,
+                );
+              const bestEntrance = reachableCandidates[0];
+
+              if (!bestEntrance) {
+                throw new Error(
+                  "No walking route could reach a mapped building entrance.",
+                );
+              }
+
+              destinationPoint = bestEntrance.entrance;
+              data = bestEntrance.data;
+              state.preferredEntranceDestinationId = requestDestination.id;
+              state.preferredEntrance = bestEntrance.entrance;
+              state.preferredEntranceOrigin = requestOrigin;
+            } else {
+              const routeEnd = cachedEntrance
+                ? [cachedEntrance.longitude, cachedEntrance.latitude] as [number, number]
+                : end;
+              destinationPoint = cachedEntrance ?? destinationPoint;
+              const routeCoordinates: [number, number][] =
+                !originInsideCampus && destinationInsideCampus
+                  ? [
+                      start,
+                      [
+                        CAMPUS_STUDENT_GATE.longitude,
+                        CAMPUS_STUDENT_GATE.latitude,
+                      ] as [number, number],
+                      routeEnd,
+                    ]
+                  : [start, routeEnd];
+              data = await getWalkingRoute(routeCoordinates);
+            }
 
           if (
             state.destinationId === requestDestination.id &&
@@ -544,6 +1046,14 @@ export default function HomeScreen() {
             if (!coordinates || coordinates.length < 2) {
               throw new Error("ORS returned an invalid walking route.");
             }
+            if (
+              isCampusToCampusRoute &&
+              !routeStaysInsideCampus(coordinates)
+            ) {
+              throw new Error(
+                "The walking route leaves the campus boundary.",
+              );
+            }
 
             const snappedStart: GPSPoint = {
               latitude: coordinates[0][1],
@@ -555,14 +1065,11 @@ export default function HomeScreen() {
               longitude: lastCoordinate[0],
             };
             const startConnector = calculateDistance(requestOrigin, snappedStart);
-            const destinationConnector = calculateDistance(snappedDestination, {
-              latitude: requestDestination.latitude,
-              longitude: requestDestination.longitude,
-            });
-            // Only draw short connectors between the user/building marker and
-            // the routed walkway. Longer straight connectors can cut across
-            // buildings or courtyards and look like part of the walking path.
-            const includeStart = startConnector <= 12;
+            const destinationConnector = calculateDistance(
+              snappedDestination,
+              destinationPoint,
+            );
+            const includeStart = startConnector <= 20;
             const includeDestination = destinationConnector <= 12;
             const connectorDistance =
               (includeStart ? startConnector : 0) +
@@ -572,10 +1079,22 @@ export default function HomeScreen() {
                 ? [[requestOrigin.longitude, requestOrigin.latitude] as [number, number]]
                 : []),
               ...coordinates,
-              ...(includeDestination ? [end] : []),
+              ...(includeDestination
+                ? [[destinationPoint.longitude, destinationPoint.latitude] as [number, number]]
+                : []),
             ];
 
             setRouteCoordinates(displayedCoordinates);
+            setRouteError(null);
+            const instructionSegments = feature.properties?.segments as
+              | { steps?: { instruction?: string }[] }[]
+              | undefined;
+            setRouteInstructions(
+              instructionSegments
+                ?.flatMap((segment) => segment.steps ?? [])
+                .map((step) => step.instruction?.trim() ?? "")
+                .filter(Boolean) ?? [],
+            );
 
             setRouteInfo({
               distance:
@@ -591,35 +1110,40 @@ export default function HomeScreen() {
 
             console.log("Walking route updated:", coordinates.length, "points");
           }
-        } catch (error) {
-          console.error("ORS route error:", error);
+          } catch (error) {
+            console.error("ORS route error:", error);
 
-          if (
-            state.destinationId === requestDestination.id &&
-            selectedDestinationRef.current?.id === requestDestination.id &&
-            isTrackingRef.current
-          ) {
             if (
-              offlineFallbackRoute &&
-              offlineFallbackRoute.coordinates.length >= 2
+              state.destinationId === requestDestination.id &&
+              selectedDestinationRef.current?.id === requestDestination.id &&
+              isTrackingRef.current
             ) {
-              setRouteCoordinates(offlineFallbackRoute.coordinates);
-              setRouteInfo({
-                distance: offlineFallbackRoute.distance,
-                duration: offlineFallbackRoute.distance / 1.2,
-              });
-            } else {
-              // Never draw a straight line as if it were a walking path.
-              const distance = calculateDistance(
-                requestOrigin,
-                destinationPoint,
-              );
-              setRouteCoordinates([]);
-              setRouteInfo({ distance, duration: distance / 1.2 });
-            }
+              if (
+                offlineFallbackRoute &&
+                offlineFallbackRoute.coordinates.length >= 2
+              ) {
+                setRouteCoordinates(offlineFallbackRoute.coordinates);
+                setRouteInfo({
+                  distance: offlineFallbackRoute.distance,
+                  duration: offlineFallbackRoute.distance / 1.2,
+                });
+                setRouteInstructions([]);
+                setRouteError(null);
+                setIsOfflineRoute(true);
+              } else {
+                setRouteCoordinates([]);
+                setRouteInfo(null);
+                setRouteInstructions([]);
+                setRouteError(
+                  error instanceof Error
+                    ? error.message
+                    : "Could not find a walking route. Check your connection and try again.",
+                );
+                setIsOfflineRoute(false);
+              }
 
-            setIsOfflineRoute(true);
-            state.lastOrigin = requestOrigin;
+              state.lastOrigin = requestOrigin;
+            }
           }
         }
 
@@ -654,6 +1178,7 @@ export default function HomeScreen() {
   useEffect(() => {
     let subscription: Location.LocationSubscription | null = null;
     let active = true;
+    let latestAcceptedTimestamp = 0;
 
     async function startGPS() {
       try {
@@ -663,6 +1188,7 @@ export default function HomeScreen() {
 
         if (permission.status !== "granted") {
           setLocationMessage("Location permission is required.");
+          setIsGPSReady(true);
           return;
         }
 
@@ -674,6 +1200,7 @@ export default function HomeScreen() {
           setLocationMessage(
             "Turn on Location in your phone settings to use GPS.",
           );
+          setIsGPSReady(true);
           return;
         }
 
@@ -693,19 +1220,15 @@ export default function HomeScreen() {
           );
         }
 
-        const initialLocation = await Location.getCurrentPositionAsync({
-          accuracy: Location.Accuracy.BestForNavigation,
-        });
-
-        if (!active) return;
-
-        updateGPSPosition(initialLocation);
-
+        // Start the live listener before waiting for a one-shot fix. A slow
+        // current-position request must not leave the app stuck on its cached
+        // location, and the timestamp guard below prevents a late result from
+        // replacing a newer live update.
         subscription = await Location.watchPositionAsync(
           {
             accuracy: Location.Accuracy.BestForNavigation,
-            timeInterval: 3000,
-            distanceInterval: 3,
+            timeInterval: 1000,
+            distanceInterval: 1,
           },
           (location) => {
             if (!active) return;
@@ -713,6 +1236,14 @@ export default function HomeScreen() {
             updateGPSPosition(location);
           },
         );
+
+        const initialLocation = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.BestForNavigation,
+        });
+
+        if (!active) return;
+
+        updateGPSPosition(initialLocation);
       } catch (error) {
         console.warn("Unable to get a current GPS fix:", error);
 
@@ -720,14 +1251,19 @@ export default function HomeScreen() {
           setLocationMessage(
             "GPS could not get a current fix. Turn on Location and try outdoors.",
           );
+          setIsGPSReady(true);
         }
       }
     }
 
     function updateGPSPosition(location: Location.LocationObject) {
+      if (location.timestamp < latestAcceptedTimestamp) return;
+      latestAcceptedTimestamp = location.timestamp;
+
       const coords = location.coords;
 
       setUserLocation(coords);
+      setIsGPSReady(true);
 
       const inside = isInsideCampus(coords.longitude, coords.latitude);
 
@@ -777,6 +1313,26 @@ export default function HomeScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userLocation, isTracking, selectedLocation]);
 
+  // Connectivity changes trigger a route refresh. Campus routes keep using
+  // the saved walkway graph; OpenRouteService is used when that graph cannot
+  // route the trip or when the destination is outside campus.
+  useEffect(() => {
+    if (!isInternetReachable || !isTracking || !selectedLocation || !userLocation) {
+      return;
+    }
+
+    requestNewRoute(
+      {
+        latitude: userLocation.latitude,
+        longitude: userLocation.longitude,
+      },
+      selectedLocation,
+      true,
+    );
+    // Only rerun this effect when connectivity changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isInternetReachable]);
+
   // --------------------------------------------------
   // SELECT DESTINATION
   // --------------------------------------------------
@@ -786,6 +1342,10 @@ export default function HomeScreen() {
       selectedDestinationRef.current?.id === location.id;
 
     setSelectedLocation(location);
+    setSelectedInfoTab("Overview");
+    setSheetExpanded(false);
+    // eslint-disable-next-line react-hooks/immutability
+    sheetHeight.value = withSpring(collapsedSheetHeight, SHEET_SPRING);
     selectedDestinationRef.current = location;
 
     setSearchQuery("");
@@ -802,6 +1362,8 @@ export default function HomeScreen() {
 
     setRouteCoordinates([]);
     setRouteInfo(null);
+    setRouteInstructions([]);
+    setRouteError(null);
     setIsOfflineRoute(false);
 
     setIsLoadingRoute(false);
@@ -815,6 +1377,43 @@ export default function HomeScreen() {
     routeState.latestOrigin = null;
     routeState.latestDestination = null;
     routeState.destinationId = location.id;
+    routeState.preferredEntranceDestinationId = null;
+    routeState.preferredEntrance = null;
+    routeState.preferredEntranceOrigin = null;
+  }
+
+  function selectSearchedLocation(location: CampusLocation) {
+    selectLocation(location);
+    setFocusedLocationId(location.id);
+    setShowCategoryFilters(false);
+    setIsFollowing(false);
+
+    if (!mapSize.width || !mapSize.height || !scale) return;
+    const pixel = gpsToImage(location.latitude, location.longitude);
+    const finalZoom = Math.min(4, Math.max(zoom.value, 2.2));
+    const targetX = -(pixel.x * scale - renderedWidth / 2) * finalZoom;
+    const targetY = -(pixel.y * scale - renderedHeight * 0.47) * finalZoom;
+
+    // eslint-disable-next-line react-hooks/immutability
+    zoom.value = withTiming(finalZoom, {
+      duration: 700,
+      easing: Easing.out(Easing.cubic),
+    });
+    savedZoom.value = finalZoom;
+    // eslint-disable-next-line react-hooks/immutability
+    translateX.value = withTiming(
+      clampTranslation(targetX, renderedWidth, mapSize.width, finalZoom),
+      { duration: 700, easing: Easing.out(Easing.cubic) },
+    );
+    // eslint-disable-next-line react-hooks/immutability
+    translateY.value = withTiming(
+      clampTranslation(targetY, renderedHeight, mapSize.height, finalZoom),
+      { duration: 700, easing: Easing.out(Easing.cubic) },
+    );
+  }
+
+  function selectMapMarker(location: CampusLocation) {
+    selectSearchedLocation(location);
   }
 
   // --------------------------------------------------
@@ -856,6 +1455,9 @@ export default function HomeScreen() {
     };
     routeState.latestDestination = destination;
     routeState.destinationId = destination.id;
+    routeState.preferredEntranceDestinationId = null;
+    routeState.preferredEntrance = null;
+    routeState.preferredEntranceOrigin = null;
 
     setIsTracking(true);
     setIsFollowing(true);
@@ -882,6 +1484,8 @@ export default function HomeScreen() {
 
     setRouteCoordinates([]);
     setRouteInfo(null);
+    setRouteInstructions([]);
+    setRouteError(null);
     setIsOfflineRoute(false);
 
     const routeState = routeRequestRef.current;
@@ -892,6 +1496,9 @@ export default function HomeScreen() {
     routeState.latestOrigin = null;
     routeState.latestDestination = null;
     routeState.destinationId = selectedLocation?.id ?? null;
+    routeState.preferredEntranceDestinationId = null;
+    routeState.preferredEntrance = null;
+    routeState.preferredEntranceOrigin = null;
   }
 
   // --------------------------------------------------
@@ -913,6 +1520,26 @@ export default function HomeScreen() {
     }
 
     setIsFollowing(true);
+  }
+
+  function adjustZoom(direction: "in" | "out") {
+    const nextZoom = Math.min(
+      4,
+      Math.max(1, zoom.value + (direction === "in" ? 0.25 : -0.25)),
+    );
+    // eslint-disable-next-line react-hooks/immutability
+    zoom.value = withTiming(nextZoom, { duration: 250 });
+    savedZoom.value = nextZoom;
+    // eslint-disable-next-line react-hooks/immutability
+    translateX.value = withTiming(
+      clampTranslation(translateX.value, renderedWidth, mapSize.width, nextZoom),
+      { duration: 250 },
+    );
+    // eslint-disable-next-line react-hooks/immutability
+    translateY.value = withTiming(
+      clampTranslation(translateY.value, renderedHeight, mapSize.height, nextZoom),
+      { duration: 250 },
+    );
   }
 
   // --------------------------------------------------
@@ -943,7 +1570,6 @@ export default function HomeScreen() {
   const routeDisplayPoints: ImagePoint[] = routeCoordinates.map(
     ([longitude, latitude]) => gpsToImage(latitude, longitude),
   );
-  const hasOfflineWalkingRoute = isOfflineRoute && routeCoordinates.length >= 2;
 
   // --------------------------------------------------
   // ROUTE SEGMENT RENDERER
@@ -1016,6 +1642,8 @@ export default function HomeScreen() {
               source={MAP_IMAGE.source}
               style={styles.mapImage}
               resizeMode="stretch"
+              onLoad={() => setIsMapLoaded(true)}
+              onError={() => setIsMapLoaded(true)}
             />
 
             {/* BLUE WALKING ROUTE */}
@@ -1037,7 +1665,9 @@ export default function HomeScreen() {
             })}
 
             {/* BUILDING MARKERS */}
-            {IMPORTANT_LOCATIONS.map((location) => {
+            {visibleLocations
+              .filter((location) => location.showOnMap !== false)
+              .map((location) => {
               const pixel = gpsToImage(location.latitude, location.longitude);
 
               if (
@@ -1051,31 +1681,39 @@ export default function HomeScreen() {
 
               const isDestination =
                 isTracking && selectedLocation?.id === location.id;
+              const isFocused = focusedLocationId === location.id;
+              const markerSize = location.markerSize === "small" ? 20 : 30;
 
               return (
                 <Pressable
                   key={location.id}
+                  hitSlop={8}
                   style={[
                     styles.buildingMarker,
+                    location.markerSize === "small" && styles.smallBuildingMarker,
                     isDestination && styles.destinationMarker,
+                    isFocused && styles.focusedBuildingMarker,
                     {
-                      left: pixel.x * scale - 15,
-                      top: pixel.y * scale - 15,
+                      left: pixel.x * scale - markerSize / 2,
+                      top: pixel.y * scale - markerSize / 2,
                     },
                   ]}
-                  onPress={() => selectLocation(location)}
+                  onPress={() => selectMapMarker(location)}
                 >
-                  <Text
+                  <Animated.Text
                     style={[
                       styles.buildingMarkerText,
+                      location.markerSize === "small" && styles.smallBuildingMarkerText,
                       isDestination && styles.destinationMarkerText,
+                      isFocused && styles.focusedBuildingMarkerText,
+                      isFocused && focusedMarkerAnimatedStyle,
                     ]}
                   >
-                    {location.id}
-                  </Text>
+                    {location.markerLabel}
+                  </Animated.Text>
                 </Pressable>
               );
-            })}
+              })}
 
             {/* GPS MARKER: INSIDE CAMPUS ONLY */}
             {shouldShowGPSMarker && userPixel && (
@@ -1130,6 +1768,20 @@ export default function HomeScreen() {
               <Text style={styles.clearSearch}>✕</Text>
             </Pressable>
           )}
+
+          <Pressable
+            style={styles.menuButton}
+            onPress={() => {
+              setShowCategoryFilters((visible) => !visible);
+              setShowSearchResults(false);
+            }}
+            accessibilityRole="button"
+            accessibilityLabel="Toggle category filters"
+          >
+            <Text style={styles.menuButtonText}>
+              {showCategoryFilters ? "✕" : "☰"}
+            </Text>
+          </Pressable>
         </View>
 
         {/* SEARCH RESULTS */}
@@ -1141,10 +1793,12 @@ export default function HomeScreen() {
                   <Pressable
                     key={location.id}
                     style={styles.searchResultItem}
-                    onPress={() => selectLocation(location)}
+                    onPress={() => selectSearchedLocation(location)}
                   >
                     <View style={styles.resultNumber}>
-                      <Text style={styles.resultNumberText}>{location.id}</Text>
+                      <Text style={styles.resultNumberText}>
+                        {location.markerLabel}
+                      </Text>
                     </View>
 
                     <View style={{ flex: 1 }}>
@@ -1166,10 +1820,47 @@ export default function HomeScreen() {
         )}
       </View>
 
+      {showCategoryFilters && (
+        <View style={styles.categoryContainer}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.categoryList}
+          >
+            {availableCategories.map((category) => {
+              const active = selectedCategory === category;
+              return (
+                <Pressable
+                  key={category}
+                  style={[
+                    styles.categoryChip,
+                    active && styles.categoryChipActive,
+                  ]}
+                  onPress={() => {
+                    setSelectedCategory(category);
+                    setShowSearchResults(false);
+                  }}
+                >
+                  <Text
+                    style={[
+                      styles.categoryChipText,
+                      active && styles.categoryChipTextActive,
+                    ]}
+                  >
+                    {category}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+        </View>
+      )}
+
       {/* GPS STATUS */}
       <View
         style={[
           styles.status,
+          showCategoryFilters && styles.statusBelowFilters,
           isInside === true
             ? styles.insideStatus
             : isInside === false
@@ -1211,7 +1902,11 @@ export default function HomeScreen() {
 
       {/* MY LOCATION / FOLLOW */}
       <Pressable
-        style={[styles.followButton, isFollowing && styles.followButtonActive]}
+        style={[
+          styles.followButton,
+          { bottom: selectedLocation ? (sheetExpanded ? expandedSheetHeight : collapsedSheetHeight) + 14 : 90 },
+          isFollowing && styles.followButtonActive,
+        ]}
         onPress={followMyLocation}
       >
         <Text
@@ -1225,111 +1920,83 @@ export default function HomeScreen() {
       </Pressable>
 
       {/* RESET */}
-      <Pressable style={styles.resetButton} onPress={resetMapPosition}>
+      <Pressable
+        style={[
+          styles.resetButton,
+          { bottom: selectedLocation ? (sheetExpanded ? expandedSheetHeight : collapsedSheetHeight) + 74 : 30 },
+        ]}
+        onPress={resetMapPosition}
+      >
         <Text style={styles.resetButtonText}>⟲</Text>
       </Pressable>
 
-      {/* SELECTED BUILDING CARD */}
+      <View
+        style={[
+          styles.zoomControls,
+          { bottom: selectedLocation ? (sheetExpanded ? expandedSheetHeight : collapsedSheetHeight) + 14 : 150 },
+        ]}
+      >
+        <Pressable
+          style={styles.zoomButton}
+          onPress={() => adjustZoom("in")}
+          accessibilityRole="button"
+          accessibilityLabel="Zoom in"
+        >
+          <Text style={styles.zoomButtonText}>+</Text>
+        </Pressable>
+        <Pressable
+          style={styles.zoomButton}
+          onPress={() => adjustZoom("out")}
+          accessibilityRole="button"
+          accessibilityLabel="Zoom out"
+        >
+          <Text style={styles.zoomButtonText}>−</Text>
+        </Pressable>
+      </View>
+
       {selectedLocation && (
-        <View style={styles.locationCard}>
-          <View style={styles.locationHeader}>
-            {selectedLocation.image ? (
-              <Image
-                source={selectedLocation.image}
-                style={styles.locationPhoto}
-                resizeMode="cover"
-              />
-            ) : (
-              <View style={styles.locationPhotoPlaceholder}>
-                <Text style={styles.locationPhotoPlaceholderIcon}>▧</Text>
-                <Text style={styles.locationPhotoPlaceholderText}>
-                  Photo slot
-                </Text>
-              </View>
-            )}
+        <LocationBottomSheet
+          selectedLocation={selectedLocation}
+          selectedInfoTab={selectedInfoTab}
+          routeInfo={routeInfo}
+          routeInstructions={routeInstructions}
+          routeError={routeError}
+          isOfflineRoute={isOfflineRoute}
+          isTracking={isTracking}
+          isLoadingRoute={isLoadingRoute}
+          isRerouting={isRerouting}
+          sheetExpanded={sheetExpanded}
+          animatedSheetStyle={animatedSheetStyle}
+          sheetDragGesture={sheetDragGesture}
+          onClose={() => {
+            setSelectedLocation(null);
+            setSelectedInfoTab("Overview");
+            setFocusedLocationId(null);
+            setSheetExpanded(false);
+          }}
+          onToggleSheet={toggleSheet}
+          onStartTracking={startTracking}
+          onStartOrFollow={() => {
+            if (isTracking) followMyLocation();
+            else void startTracking();
+          }}
+          onMore={() => {
+            setSelectedInfoTab("Details");
+            expandSheet();
+          }}
+          onTabChange={setSelectedInfoTab}
+          onStopTracking={stopTracking}
+        />
+      )}
 
-            <View style={styles.locationTitleGroup}>
-              <Text style={styles.locationBuilding}>
-                {selectedLocation.building}
-              </Text>
-
-              <Text style={styles.locationName}>{selectedLocation.name}</Text>
-            </View>
-          </View>
-
-          <Text style={styles.locationDescription}>
-            {selectedLocation.description}
-          </Text>
-
-          {isTracking && routeInfo && (
-            <Text style={styles.routeInfoText}>
-              {hasOfflineWalkingRoute
-                ? "Saved campus walking route"
-                : isOfflineRoute
-                  ? "Offline straight-line distance only"
-                : "Walking route"}
-              : {(routeInfo.distance / 1000).toFixed(2)} km
-              {(!isOfflineRoute || hasOfflineWalkingRoute) && (
-                <>
-                  {" · "}
-                  {isOfflineRoute ? "~" : ""}
-                  {Math.max(1, Math.round(routeInfo.duration / 60))} min
-                </>
-              )}
-            </Text>
-          )}
-
-          {isTracking && isOfflineRoute && hasOfflineWalkingRoute && (
-            <Text style={styles.offlineRouteWarning}>
-              This route follows saved campus paths. If a marker is away from a
-              path, follow the nearest walkway to reach it.
-            </Text>
-          )}
-
-          {isTracking && isOfflineRoute && !hasOfflineWalkingRoute && (
-            <Text style={styles.offlineRouteWarning}>
-              No saved walking path connects your location to this destination.
-              This is only an approximate straight-line distance.
-            </Text>
-          )}
-
-          {isRerouting && (
-            <Text style={styles.reroutingText}>Updating walking route...</Text>
-          )}
-
-          {/* TRACK */}
-          <Pressable
-            style={[
-              styles.trackButton,
-              isLoadingRoute && styles.trackButtonDisabled,
-            ]}
-            onPress={startTracking}
-            disabled={isLoadingRoute}
-          >
-            <Text style={styles.trackButtonText}>
-              {isLoadingRoute
-                ? "Finding walking route..."
-                : isTracking
-                  ? "Refresh Route"
-                  : "Track"}
-            </Text>
-          </Pressable>
-
-          {/* STOP */}
-          {isTracking && (
-            <Pressable style={styles.stopTrackButton} onPress={stopTracking}>
-              <Text style={styles.stopTrackButtonText}>Stop Tracking</Text>
-            </Pressable>
-          )}
-
-          {/* CLOSE */}
-          <Pressable
-            style={styles.closeButton}
-            onPress={() => setSelectedLocation(null)}
-          >
-            <Text style={styles.closeButtonText}>Close</Text>
-          </Pressable>
-        </View>
+      {showLoadingScreen && (
+        <LoadingScreen
+          mapReady={isMapLoaded}
+          gpsReady={isGPSReady}
+          minTimeDone={isMinimumLoadingTimeComplete}
+          duration={LOADING_DURATION}
+          onFinished={() => setShowLoadingScreen(false)}
+        />
       )}
     </View>
   );
@@ -1340,6 +2007,58 @@ export default function HomeScreen() {
 // --------------------------------------------------
 
 const styles = StyleSheet.create({
+  menuButton: {
+    width: 38,
+    height: 38,
+    alignItems: "center",
+    justifyContent: "center",
+    marginLeft: 8,
+  },
+
+  menuButtonText: {
+    color: "#FFC900",
+    fontSize: 22,
+    fontWeight: "800",
+  },
+
+  categoryContainer: {
+    position: "absolute",
+    top: 102,
+    left: 0,
+    right: 0,
+    zIndex: 9,
+  },
+
+  categoryList: {
+    paddingHorizontal: 16,
+    paddingVertical: 5,
+    gap: 8,
+  },
+
+  categoryChip: {
+    paddingHorizontal: 16,
+    paddingVertical: 9,
+    borderRadius: 22,
+    backgroundColor: "rgba(29, 29, 29, 0.96)",
+    borderWidth: 1,
+    borderColor: "#505050",
+  },
+
+  categoryChipActive: {
+    backgroundColor: "#FFC900",
+    borderColor: "#FFC900",
+  },
+
+  categoryChipText: {
+    color: "#F2F2F2",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+
+  categoryChipTextActive: {
+    color: "#171717",
+  },
+
   container: {
     flex: 1,
     backgroundColor: "#343434",
@@ -1359,7 +2078,7 @@ const styles = StyleSheet.create({
   routeSegment: {
     position: "absolute",
     height: 6,
-    borderRadius: 6,
+    borderRadius: 2,
     backgroundColor: "#FFC900",
     zIndex: 4,
     elevation: 4,
@@ -1380,6 +2099,17 @@ const styles = StyleSheet.create({
     zIndex: 5,
   },
 
+  smallBuildingMarker: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 1,
+  },
+
+  smallBuildingMarkerText: {
+    fontSize: 8,
+  },
+
   destinationMarker: {
     backgroundColor: "#FFC900",
     borderColor: "#F2F2F2",
@@ -1397,6 +2127,19 @@ const styles = StyleSheet.create({
 
   destinationMarkerText: {
     color: "#111111",
+  },
+
+  focusedBuildingMarker: {
+    backgroundColor: "#FFC900",
+    borderColor: "#FFFFFF",
+    borderWidth: 3,
+    elevation: 12,
+    zIndex: 20,
+  },
+
+  focusedBuildingMarkerText: {
+    color: "#150E3C",
+    fontWeight: "900",
   },
 
   // GPS marker
@@ -1543,6 +2286,10 @@ const styles = StyleSheet.create({
     borderColor: "#4A4A4A",
   },
 
+  statusBelowFilters: {
+    top: 158,
+  },
+
   statusText: {
     color: "#FFFFFF",
     fontSize: 13,
@@ -1616,6 +2363,33 @@ const styles = StyleSheet.create({
   resetButtonText: {
     fontSize: 30,
     color: "#FFC900",
+  },
+
+  zoomControls: {
+    position: "absolute",
+    right: 18,
+    alignItems: "center",
+    gap: 8,
+    zIndex: 10,
+  },
+
+  zoomButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 14,
+    backgroundColor: "#1D1D1D",
+    borderWidth: 1,
+    borderColor: "#4A4A4A",
+    alignItems: "center",
+    justifyContent: "center",
+    elevation: 7,
+  },
+
+  zoomButtonText: {
+    color: "#FFC900",
+    fontSize: 28,
+    fontWeight: "600",
+    lineHeight: 32,
   },
 
   // Building card

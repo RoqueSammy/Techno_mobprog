@@ -1,0 +1,48 @@
+env: load .env
+env: export EXPO_PUBLIC_ORS_API_KEY
+Starting project at D:\h
+Using src/app as the root directory for Expo Router.
+Starting Metro Bundler
+
+warning: Bundler cache is empty, rebuilding (this may take a minute)
+Waiting on http://localhost:8082
+
+Logs for your project will appear below.
+| (node:46280) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+| (Use `node --trace-warnings ...` to show where the warning was created)
+| (node:46280) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+| (Use `node --trace-warnings ...` to show where the warning was created)
+| (node:46280) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+| (Use `node --trace-warnings ...` to show where the warning was created)
+| (node:46280) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+| (Use `node --trace-warnings ...` to show where the warning was created)
+| (node:46280) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+| (Use `node --trace-warnings ...` to show where the warning was created)
+| (node:46280) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+| (Use `node --trace-warnings ...` to show where the warning was created)
+| (node:46280) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+| (Use `node --trace-warnings ...` to show where the warning was created)
+| (node:46280) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+| (Use `node --trace-warnings ...` to show where the warning was created)
+Android Bundled 10060ms node_modules\expo-router\entry.js (1976 modules)
+ LOG  GPS UPDATE: 8.485201835632324 124.65657806396484 Accuracy: 1 Inside campus: true
+ LOG  GPS UPDATE: 8.485201835632324 124.65657806396484 Accuracy: 1 Inside campus: true
+ LOG  GPS UPDATE: 8.485201835632324 124.65657806396484 Accuracy: 1 Inside campus: true
+ LOG  GPS UPDATE: 8.485201835632324 124.65657806396484 Accuracy: 1 Inside campus: true
+ LOG  GPS UPDATE: 8.485201835632324 124.65657806396484 Accuracy: 1 Inside campus: true
+ LOG  GPS UPDATE: 8.485201835632324 124.65657806396484 Accuracy: 1 Inside campus: true
+ LOG  GPS UPDATE: 8.485201835632324 124.65657806396484 Accuracy: 1 Inside campus: true
+ LOG  GPS UPDATE: 8.485201835632324 124.65657806396484 Accuracy: 1 Inside campus: true
+ LOG  GPS UPDATE: 8.485201835632324 124.65657806396484 Accuracy: 1 Inside campus: true
+ LOG  GPS UPDATE: 8.485201835632324 124.65657806396484 Accuracy: 1 Inside campus: true
+Android Bundled 730ms node_modules\expo-router\entry.js (1 module)
+ LOG  GPS UPDATE: 8.4737963 124.644611 Accuracy: 16.80500030517578 Inside campus: false
+ LOG  GPS UPDATE: 8.4737955 124.6446188 Accuracy: 18.35700035095215 Inside campus: false
+ LOG  GPS UPDATE: 8.4737955 124.6446188 Accuracy: 18.35700035095215 Inside campus: false
+ LOG  GPS UPDATE: 8.485201835632324 124.65657806396484 Accuracy: 1 Inside campus: true
+ LOG  Walking route updated: 11 points
+Android Bundled 540ms node_modules\expo-router\entry.js (1 module)
+ LOG  GPS UPDATE: 8.485201835632324 124.65657806396484 Accuracy: 1 Inside campus: true
+ LOG  GPS UPDATE: 8.485201835632324 124.65657806396484 Accuracy: 1 Inside campus: true
+ LOG  GPS UPDATE: 8.485201835632324 124.65657806396484 Accuracy: 1 Inside campus: true
+ LOG  Walking route updated: 11 points

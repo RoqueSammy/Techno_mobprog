@@ -1,0 +1,145 @@
+2026-11-25T21:54:51.664Z root:init {"_e":"root:init","_t":1795643691664.718,"version":"58.1.21"}
+2026-11-25T21:54:51.775Z telemetry:strategy_changed {"_e":"telemetry:strategy_changed","_t":1795643691775.842,"_l":1,"from":"detached","to":"instant"}
+2026-11-25T21:54:51.779Z env:mode {"_e":"env:mode","_t":1795643691779.033,"nodeEnv":"development","mode":"development"}
+2026-11-25T21:54:51.782Z env:load {"_e":"env:load","_t":1795643691782.515,"mode":"development","files":[".env"],"keys":["EXPO_PUBLIC_ORS_API_KEY"]}
+env: load .env
+env: export EXPO_PUBLIC_ORS_API_KEY
+Starting project at D:\h
+2026-11-25T21:54:52.024Z root:update {"_e":"root:update","_t":1795643692024.254,"ready":false,"devServerUrl":null,"port":null,"runtimeUrl":null}
+Using src/app as the root directory for Expo Router.
+2026-11-25T21:54:52.217Z devserver:start {"_e":"devserver:start","_t":1795643692217.807,"mode":"development","web":true,"baseUrl":"","asyncRoutes":true,"routerRoot":"src/app","serverComponents":false,"serverActions":false,"serverRendering":false,"apiRoutes":false,"exporting":false}
+
+Expo Metro config:
+- Version: 58.0.23
+- Extensions: ts, tsx, mjs, js, jsx, json, cjs, scss, sass, css
+- React Native: D:\h\node_modules\react-native
+- Watch Folders: 
+- Node Module Paths: 
+- Sass: null
+- Reanimated: 4.7.1
+- Worklets: 0.13.0
+- Babel Runtime: 7.29.10
+
+2026-11-25T21:54:52.546Z resolve:resolvers_appended {"_e":"resolve:resolvers_appended","_t":1795643692546.807,"_l":1,"count":8,"hasCustom":false}
+2026-11-25T21:54:52.550Z metro:config {"_e":"metro:config","_t":1795643692550.913,"serverRoot":".","projectRoot":".","exporting":false,"flags":{"autolinkingModuleResolution":false,"serverActions":false,"serverComponents":false,"reactCompiler":false,"optimizeGraph":false,"treeshaking":false,"logbox":false}}
+2026-11-25T21:54:52.857Z expo:dev-tools-plugin:load {"_e":"expo:dev-tools-plugin:load","_t":1795643692857.22,"plugins":[]}
+Starting Metro Bundler
+
+warning: Bundler cache is empty, rebuilding (this may take a minute)
+2026-11-25T21:54:53.191Z filemap:hydrate 0.5ms {"_e":"filemap:hydrate","_t":1795643693191.178,"_d":0.5024000000000797,"_l":1,"fromCache":false}
+2026-11-25T21:54:53.460Z filemap:crawl 268ms {"_e":"filemap:crawl","_t":1795643693460.237,"_d":268.18719999999985,"_l":1,"crawler":"node","full":true,"changed":28143,"removed":0}
+2026-11-25T21:54:53.506Z filemap:process 45.7ms {"_e":"filemap:process","_t":1795643693506.336,"_d":45.73700000000008,"_l":1,"processed":28143}
+2026-11-25T21:54:53.517Z filemap:persist 10.3ms {"_e":"filemap:persist","_t":1795643693517.068,"_d":10.256500000000187,"_l":1}
+2026-11-25T21:54:56.728Z filemap:build 3.54s {"_e":"filemap:build","_t":1795643696728.91,"_d":3538.2567,"crawler":"node","fromCache":false}
+2026-11-25T21:54:56.779Z metro:instantiate 4.56s {"_e":"metro:instantiate","_t":1795643696779.723,"_d":4561.5742,"atlas":false,"workers":8,"host":"127.0.0.1","port":8082}
+2026-11-25T21:54:56.839Z devserver:url {"_e":"devserver:url","_t":1795643696839.202,"bundler":"metro","url":"http://127.0.0.1:8082","runtimeUrl":"exp://127.0.0.1:8082?__expo_disable_fab=1&__expo_disable_auto_launch=1&__expo_disable_onboarding=1","hostType":"localhost","port":8082}
+2026-11-25T21:54:56.840Z root:update {"_e":"root:update","_t":1795643696840.668,"ready":true,"devServerUrl":"http://localhost:8082","port":8082,"runtimeUrl":"exp://127.0.0.1:8082?__expo_disable_fab=1&__expo_disable_auto_launch=1&__expo_disable_onboarding=1"}
+2026-11-25T21:54:56.844Z devserver:session_ping {"_e":"devserver:session_ping","_t":1795643696844.467,"_l":1,"runtime":"native","url":"exp://127.0.0.1:8082?__expo_disable_fab=1&__expo_disable_auto_launch=1&__expo_disable_onboarding=1"}
+2026-11-25T21:54:56.862Z doctor:check {"_e":"doctor:check","_t":1795643696862.169,"name":"TypeScriptProjectPrerequisite","satisfied":true}
+2026-11-25T21:54:56.871Z typegen:removing_side_effects {"_e":"typegen:removing_side_effects","_t":1795643696871.254,"_l":1}
+Waiting on http://localhost:8082
+
+Logs for your project will appear below.
+2026-11-25T21:54:56.877Z typegen:done 14.7ms {"_e":"typegen:done","_t":1795643696877.155,"_d":14.728100000000268,"enabled":false}
+2026-11-25T21:54:56.881Z devserver:session_ping_failed {"_e":"devserver:session_ping_failed","_t":1795643696881.443,"_l":1,"error":{"name":"AggregateError","message":"","code":"EACCES","stack":"AggregateError [EACCES]: \n    at internalConnectMultiple (node:net:1426:18)\n    at afterConnectMultiple (node:net:2095:7)"}}
+2026-11-25T21:54:57.770Z metro:worker_log {"_e":"metro:worker_log","_t":1795643697770.72,"stream":"stderr","data":"(node:47124) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.\n(Use `node --trace-warnings ...` to show where the warning was created)\n"}
+| (node:47124) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+| (Use `node --trace-warnings ...` to show where the warning was created)
+2026-11-25T21:54:57.793Z metro:worker_log {"_e":"metro:worker_log","_t":1795643697793.013,"stream":"stderr","data":"(node:47124) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.\n(Use `node --trace-warnings ...` to show where the warning was created)\n"}
+| (node:47124) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+| (Use `node --trace-warnings ...` to show where the warning was created)
+2026-11-25T21:54:57.795Z config:cache:skipped {"_e":"config:cache:skipped","_t":1795643697795.795,"_l":1}
+2026-11-25T21:54:57.094Z root:init {"_e":"root:init","_t":1795643697094.366,"_w":"worker_thread:3"}
+2026-11-25T21:54:57.325Z transform:babel:missing_router_root {"_e":"transform:babel:missing_router_root","_t":1795643697325.432,"_l":1,"_w":"worker_thread:3","message":"Warning: Missing transform.routerRoot option in Metro bundling request, falling back to `app` as routes directory. This can occur if you bundle without Expo CLI or expo/metro-config."}
+2026-11-25T21:54:57.752Z transform:babel 448ms {"_e":"transform:babel","_t":1795643697752.242,"_d":447.9315999999999,"_l":1,"_w":"worker_thread:3","file":"..\\__prewarm__\\2.js"}
+2026-11-25T21:54:57.779Z transform:import_support 8.02ms {"_e":"transform:import_support","_t":1795643697779.289,"_d":8.015699999999924,"_l":1,"_w":"worker_thread:3","file":"..\\__prewarm__\\2.js"}
+2026-11-25T21:54:57.780Z transform:collect_dependencies 1.31ms {"_e":"transform:collect_dependencies","_t":1795643697780.707,"_d":1.3092999999998938,"_l":1,"_w":"worker_thread:3","file":"..\\__prewarm__\\2.js","count":0}
+2026-11-25T21:54:57.792Z transform:codegen 6.71ms {"_e":"transform:codegen","_t":1795643697792.271,"_d":6.712900000000445,"_l":1,"_w":"worker_thread:3","file":"..\\__prewarm__\\2.js"}
+2026-11-25T21:54:57.794Z transform:file 537ms {"_e":"transform:file","_t":1795643697794.713,"_d":536.6708999999992,"_l":1,"_w":"worker_thread:3","file":"../__prewarm__/2.js","platform":"ios","environment":null,"type":"module","deps":0,"cached":false}
+2026-11-25T21:54:57.812Z metro:worker_log {"_e":"metro:worker_log","_t":1795643697812.221,"stream":"stderr","data":"(node:47124) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.\n(Use `node --trace-warnings ...` to show where the warning was created)\n"}
+| (node:47124) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+| (Use `node --trace-warnings ...` to show where the warning was created)
+2026-11-25T21:54:57.812Z metro:worker_log {"_e":"metro:worker_log","_t":1795643697812.622,"stream":"stderr","data":"(node:47124) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.\n(Use `node --trace-warnings ...` to show where the warning was created)\n"}
+| (node:47124) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+| (Use `node --trace-warnings ...` to show where the warning was created)
+2026-11-25T21:54:57.813Z metro:worker_log {"_e":"metro:worker_log","_t":1795643697813.08,"stream":"stderr","data":"(node:47124) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.\n(Use `node --trace-warnings ...` to show where the warning was created)\n"}
+| (node:47124) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+| (Use `node --trace-warnings ...` to show where the warning was created)
+2026-11-25T21:54:57.818Z config:cache:skipped {"_e":"config:cache:skipped","_t":1795643697818.677,"_l":1}
+2026-11-25T21:54:57.100Z root:init {"_e":"root:init","_t":1795643697100.131,"_w":"worker_thread:2"}
+2026-11-25T21:54:57.337Z transform:babel:missing_router_root {"_e":"transform:babel:missing_router_root","_t":1795643697337.086,"_l":1,"_w":"worker_thread:2","message":"Warning: Missing transform.routerRoot option in Metro bundling request, falling back to `app` as routes directory. This can occur if you bundle without Expo CLI or expo/metro-config."}
+2026-11-25T21:54:57.773Z transform:babel 455ms {"_e":"transform:babel","_t":1795643697773.5,"_d":454.9258,"_l":1,"_w":"worker_thread:2","file":"..\\__prewarm__\\1.js"}
+2026-11-25T21:54:57.802Z transform:import_support 8.77ms {"_e":"transform:import_support","_t":1795643697802.099,"_d":8.766399999999521,"_l":1,"_w":"worker_thread:2","file":"..\\__prewarm__\\1.js"}
+2026-11-25T21:54:57.802Z transform:collect_dependencies 0.63ms {"_e":"transform:collect_dependencies","_t":1795643697802.821,"_d":0.6273999999993976,"_l":1,"_w":"worker_thread:2","file":"..\\__prewarm__\\1.js","count":0}
+2026-11-25T21:54:57.816Z transform:codegen 7.72ms {"_e":"transform:codegen","_t":1795643697816.534,"_d":7.720400000000154,"_l":1,"_w":"worker_thread:2","file":"..\\__prewarm__\\1.js"}
+2026-11-25T21:54:57.818Z transform:file 544ms {"_e":"transform:file","_t":1795643697818.371,"_d":544.3221999999996,"_l":1,"_w":"worker_thread:2","file":"../__prewarm__/1.js","platform":"ios","environment":null,"type":"module","deps":0,"cached":false}
+2026-11-25T21:54:57.825Z metro:worker_log {"_e":"metro:worker_log","_t":1795643697825.466,"stream":"stderr","data":"(node:47124) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.\n(Use `node --trace-warnings ...` to show where the warning was created)\n"}
+| (node:47124) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+| (Use `node --trace-warnings ...` to show where the warning was created)
+2026-11-25T21:54:57.828Z metro:worker_log {"_e":"metro:worker_log","_t":1795643697828.413,"stream":"stderr","data":"(node:47124) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.\n(Use `node --trace-warnings ...` to show where the warning was created)\n"}
+| (node:47124) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+| (Use `node --trace-warnings ...` to show where the warning was created)
+2026-11-25T21:54:57.828Z metro:worker_log {"_e":"metro:worker_log","_t":1795643697828.95,"stream":"stderr","data":"(node:47124) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.\n(Use `node --trace-warnings ...` to show where the warning was created)\n"}
+| (node:47124) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+| (Use `node --trace-warnings ...` to show where the warning was created)
+2026-11-25T21:54:57.833Z config:cache:skipped {"_e":"config:cache:skipped","_t":1795643697833.729,"_l":1}
+2026-11-25T21:54:57.102Z root:init {"_e":"root:init","_t":1795643697102.106,"_w":"worker_thread:5"}
+2026-11-25T21:54:57.348Z transform:babel:missing_router_root {"_e":"transform:babel:missing_router_root","_t":1795643697348.288,"_l":1,"_w":"worker_thread:5","message":"Warning: Missing transform.routerRoot option in Metro bundling request, falling back to `app` as routes directory. This can occur if you bundle without Expo CLI or expo/metro-config."}
+2026-11-25T21:54:57.794Z transform:babel 465ms {"_e":"transform:babel","_t":1795643697794.109,"_d":465.4908999999998,"_l":1,"_w":"worker_thread:5","file":"..\\__prewarm__\\4.js"}
+2026-11-25T21:54:57.820Z transform:import_support 7.34ms {"_e":"transform:import_support","_t":1795643697820.429,"_d":7.342400000000453,"_l":1,"_w":"worker_thread:5","file":"..\\__prewarm__\\4.js"}
+2026-11-25T21:54:57.821Z transform:collect_dependencies 0.91ms {"_e":"transform:collect_dependencies","_t":1795643697821.447,"_d":0.9111000000002605,"_l":1,"_w":"worker_thread:5","file":"..\\__prewarm__\\4.js","count":0}
+2026-11-25T21:54:57.831Z transform:codegen 5.51ms {"_e":"transform:codegen","_t":1795643697831.986,"_d":5.505799999999908,"_l":1,"_w":"worker_thread:5","file":"..\\__prewarm__\\4.js"}
+2026-11-25T21:54:57.833Z transform:file 551ms {"_e":"transform:file","_t":1795643697833.433,"_d":551.0083999999997,"_l":1,"_w":"worker_thread:5","file":"../__prewarm__/4.js","platform":"ios","environment":null,"type":"module","deps":0,"cached":false}
+2026-11-25T21:54:57.834Z config:cache:skipped {"_e":"config:cache:skipped","_t":1795643697834.389,"_l":1}
+2026-11-25T21:54:57.105Z root:init {"_e":"root:init","_t":1795643697105.438,"_w":"worker_thread:4"}
+2026-11-25T21:54:57.347Z transform:babel:missing_router_root {"_e":"transform:babel:missing_router_root","_t":1795643697347.693,"_l":1,"_w":"worker_thread:4","message":"Warning: Missing transform.routerRoot option in Metro bundling request, falling back to `app` as routes directory. This can occur if you bundle without Expo CLI or expo/metro-config."}
+2026-11-25T21:54:57.793Z transform:babel 465ms {"_e":"transform:babel","_t":1795643697793.143,"_d":465.3654999999999,"_l":1,"_w":"worker_thread:4","file":"..\\__prewarm__\\3.js"}
+2026-11-25T21:54:57.820Z transform:import_support 7.84ms {"_e":"transform:import_support","_t":1795643697820.828,"_d":7.843199999999342,"_l":1,"_w":"worker_thread:4","file":"..\\__prewarm__\\3.js"}
+2026-11-25T21:54:57.821Z transform:collect_dependencies 0.88ms {"_e":"transform:collect_dependencies","_t":1795643697821.797,"_d":0.8753000000006068,"_l":1,"_w":"worker_thread:4","file":"..\\__prewarm__\\3.js","count":0}
+2026-11-25T21:54:57.832Z transform:codegen 5.69ms {"_e":"transform:codegen","_t":1795643697832.5,"_d":5.6899999999996,"_l":1,"_w":"worker_thread:4","file":"..\\__prewarm__\\3.js"}
+2026-11-25T21:54:57.834Z transform:file 552ms {"_e":"transform:file","_t":1795643697834.125,"_d":551.8010000000004,"_l":1,"_w":"worker_thread:4","file":"../__prewarm__/3.js","platform":"ios","environment":null,"type":"module","deps":0,"cached":false}
+2026-11-25T21:54:57.835Z config:cache:skipped {"_e":"config:cache:skipped","_t":1795643697835.801,"_l":1}
+2026-11-25T21:54:57.103Z root:init {"_e":"root:init","_t":1795643697103.333,"_w":"worker_thread:8"}
+2026-11-25T21:54:57.348Z transform:babel:missing_router_root {"_e":"transform:babel:missing_router_root","_t":1795643697348.682,"_l":1,"_w":"worker_thread:8","message":"Warning: Missing transform.routerRoot option in Metro bundling request, falling back to `app` as routes directory. This can occur if you bundle without Expo CLI or expo/metro-config."}
+2026-11-25T21:54:57.793Z transform:babel 465ms {"_e":"transform:babel","_t":1795643697793.678,"_d":464.78619999999955,"_l":1,"_w":"worker_thread:8","file":"..\\__prewarm__\\7.js"}
+2026-11-25T21:54:57.820Z transform:import_support 7.47ms {"_e":"transform:import_support","_t":1795643697820.945,"_d":7.471700000000055,"_l":1,"_w":"worker_thread:8","file":"..\\__prewarm__\\7.js"}
+2026-11-25T21:54:57.822Z transform:collect_dependencies 1.07ms {"_e":"transform:collect_dependencies","_t":1795643697822.124,"_d":1.0734000000002197,"_l":1,"_w":"worker_thread:8","file":"..\\__prewarm__\\7.js","count":0}
+2026-11-25T21:54:57.834Z transform:codegen 6.11ms {"_e":"transform:codegen","_t":1795643697834.029,"_d":6.108599999999569,"_l":1,"_w":"worker_thread:8","file":"..\\__prewarm__\\7.js"}
+2026-11-25T21:54:57.835Z transform:file 552ms {"_e":"transform:file","_t":1795643697835.621,"_d":552.0165999999999,"_l":1,"_w":"worker_thread:8","file":"../__prewarm__/7.js","platform":"ios","environment":null,"type":"module","deps":0,"cached":false}
+2026-11-25T21:54:57.849Z config:cache:skipped {"_e":"config:cache:skipped","_t":1795643697849.138,"_l":1}
+2026-11-25T21:54:57.849Z config:cache:skipped {"_e":"config:cache:skipped","_t":1795643697849.64,"_l":1}
+2026-11-25T21:54:57.105Z root:init {"_e":"root:init","_t":1795643697105.077,"_w":"worker_thread:6"}
+2026-11-25T21:54:57.360Z transform:babel:missing_router_root {"_e":"transform:babel:missing_router_root","_t":1795643697360.21,"_l":1,"_w":"worker_thread:6","message":"Warning: Missing transform.routerRoot option in Metro bundling request, falling back to `app` as routes directory. This can occur if you bundle without Expo CLI or expo/metro-config."}
+2026-11-25T21:54:57.807Z transform:babel 468ms {"_e":"transform:babel","_t":1795643697807.481,"_d":468.1990999999998,"_l":1,"_w":"worker_thread:6","file":"..\\__prewarm__\\5.js"}
+2026-11-25T21:54:57.834Z transform:import_support 8.51ms {"_e":"transform:import_support","_t":1795643697834.603,"_d":8.514900000000125,"_l":1,"_w":"worker_thread:6","file":"..\\__prewarm__\\5.js"}
+2026-11-25T21:54:57.835Z transform:collect_dependencies 0.91ms {"_e":"transform:collect_dependencies","_t":1795643697835.628,"_d":0.9106000000001586,"_l":1,"_w":"worker_thread:6","file":"..\\__prewarm__\\5.js","count":0}
+2026-11-25T21:54:57.846Z transform:codegen 5.28ms {"_e":"transform:codegen","_t":1795643697846.828,"_d":5.276299999999537,"_l":1,"_w":"worker_thread:6","file":"..\\__prewarm__\\5.js"}
+2026-11-25T21:54:57.848Z transform:file 557ms {"_e":"transform:file","_t":1795643697848.795,"_d":557.1238000000003,"_l":1,"_w":"worker_thread:6","file":"../__prewarm__/5.js","platform":"ios","environment":null,"type":"module","deps":0,"cached":false}
+2026-11-25T21:54:57.849Z config:cache:skipped {"_e":"config:cache:skipped","_t":1795643697849.968,"_l":1}
+2026-11-25T21:54:57.850Z metro:prewarm 1.07s {"_e":"metro:prewarm","_t":1795643697850.012,"_d":1066.5628000000006,"workers":8}
+2026-11-25T21:54:57.105Z root:init {"_e":"root:init","_t":1795643697105.2,"_w":"worker_thread:1"}
+2026-11-25T21:54:57.356Z transform:babel:missing_router_root {"_e":"transform:babel:missing_router_root","_t":1795643697356.375,"_l":1,"_w":"worker_thread:1","message":"Warning: Missing transform.routerRoot option in Metro bundling request, falling back to `app` as routes directory. This can occur if you bundle without Expo CLI or expo/metro-config."}
+2026-11-25T21:54:57.811Z transform:babel 475ms {"_e":"transform:babel","_t":1795643697811.328,"_d":474.6130999999996,"_l":1,"_w":"worker_thread:1","file":"..\\__prewarm__\\0.js"}
+2026-11-25T21:54:57.837Z transform:import_support 8.54ms {"_e":"transform:import_support","_t":1795643697837.858,"_d":8.543000000000575,"_l":1,"_w":"worker_thread:1","file":"..\\__prewarm__\\0.js"}
+2026-11-25T21:54:57.838Z transform:collect_dependencies 1ms {"_e":"transform:collect_dependencies","_t":1795643697838.967,"_d":1.0029999999997017,"_l":1,"_w":"worker_thread:1","file":"..\\__prewarm__\\0.js","count":0}
+2026-11-25T21:54:57.848Z transform:codegen 4.67ms {"_e":"transform:codegen","_t":1795643697848.007,"_d":4.665599999999358,"_l":1,"_w":"worker_thread:1","file":"..\\__prewarm__\\0.js"}
+2026-11-25T21:54:57.849Z transform:file 559ms {"_e":"transform:file","_t":1795643697849.454,"_d":558.7464999999993,"_l":1,"_w":"worker_thread:1","file":"../__prewarm__/0.js","platform":"ios","environment":null,"type":"module","deps":0,"cached":false}
+2026-11-25T21:54:57.106Z root:init {"_e":"root:init","_t":1795643697106.106,"_w":"worker_thread:7"}
+2026-11-25T21:54:57.362Z transform:babel:missing_router_root {"_e":"transform:babel:missing_router_root","_t":1795643697362.516,"_l":1,"_w":"worker_thread:7","message":"Warning: Missing transform.routerRoot option in Metro bundling request, falling back to `app` as routes directory. This can occur if you bundle without Expo CLI or expo/metro-config."}
+2026-11-25T21:54:57.809Z transform:babel 468ms {"_e":"transform:babel","_t":1795643697809.647,"_d":467.9546,"_l":1,"_w":"worker_thread:7","file":"..\\__prewarm__\\6.js"}
+2026-11-25T21:54:57.837Z transform:import_support 8.73ms {"_e":"transform:import_support","_t":1795643697837.791,"_d":8.728900000000067,"_l":1,"_w":"worker_thread:7","file":"..\\__prewarm__\\6.js"}
+2026-11-25T21:54:57.838Z transform:collect_dependencies 0.88ms {"_e":"transform:collect_dependencies","_t":1795643697838.815,"_d":0.8840000000000146,"_l":1,"_w":"worker_thread:7","file":"..\\__prewarm__\\6.js","count":0}
+2026-11-25T21:54:57.848Z transform:codegen 5.25ms {"_e":"transform:codegen","_t":1795643697848.428,"_d":5.245100000000093,"_l":1,"_w":"worker_thread:7","file":"..\\__prewarm__\\6.js"}
+2026-11-25T21:54:57.849Z transform:file 554ms {"_e":"transform:file","_t":1795643697849.745,"_d":554.4287000000004,"_l":1,"_w":"worker_thread:7","file":"../__prewarm__/6.js","platform":"ios","environment":null,"type":"module","deps":0,"cached":false}
+2026-11-25T21:54:59.013Z manifest:resolved_entry {"_e":"manifest:resolved_entry","_t":1795643699013.953,"_l":1,"path":"node_modules/expo-router/entry"}
+2026-11-25T21:55:01.643Z metro:server_log {"_e":"metro:server_log","_t":1795643701643.859,"level":"error","data":["UnexpectedServerError\nUnexpectedServerError\n    at request (D:\\h\\node_modules\\expo\\node_modules\\@expo\\cli\\build\\src\\api\\graphql\\client.js:200:34)\n    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at async Object.currentUserAsync (D:\\h\\node_modules\\expo\\node_modules\\@expo\\cli\\build\\src\\api\\graphql\\queries\\UserQuery.js:49:22)\n    at async getUserAsync (D:\\h\\node_modules\\expo\\node_modules\\@expo\\cli\\build\\src\\api\\user\\user.js:115:22)\n    at async ExpoGoManifestHandlerMiddleware._resolveProjectSettingsAsync (D:\\h\\node_modules\\expo\\node_modules\\@expo\\cli\\build\\src\\start\\server\\middleware\\ManifestMiddleware.js:142:22)\n    at async ExpoGoManifestHandlerMiddleware._getManifestResponseAsync (D:\\h\\node_modules\\expo\\node_modules\\@expo\\cli\\build\\src\\start\\server\\middleware\\ExpoGoManifestHandlerMiddleware.js:148:59)\n    at async ExpoGoManifestHandlerMiddleware.handleRequestAsync (D:\\h\\node_modules\\expo\\node_modules\\@expo\\cli\\build\\src\\start\\server\\middleware\\ManifestMiddleware.js:333:26)\n    at async internalMiddleware (D:\\h\\node_modules\\expo\\node_modules\\@expo\\cli\\build\\src\\start\\server\\middleware\\ExpoMiddleware.js:88:24)"]}
+UnexpectedServerError
+UnexpectedServerError
+    at request (D:\h\node_modules\expo\node_modules\@expo\cli\build\src\api\graphql\client.js:200:34)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async Object.currentUserAsync (D:\h\node_modules\expo\node_modules\@expo\cli\build\src\api\graphql\queries\UserQuery.js:49:22)
+    at async getUserAsync (D:\h\node_modules\expo\node_modules\@expo\cli\build\src\api\user\user.js:115:22)
+    at async ExpoGoManifestHandlerMiddleware._resolveProjectSettingsAsync (D:\h\node_modules\expo\node_modules\@expo\cli\build\src\start\server\middleware\ManifestMiddleware.js:142:22)
+    at async ExpoGoManifestHandlerMiddleware._getManifestResponseAsync (D:\h\node_modules\expo\node_modules\@expo\cli\build\src\start\server\middleware\ExpoGoManifestHandlerMiddleware.js:148:59)
+    at async ExpoGoManifestHandlerMiddleware.handleRequestAsync (D:\h\node_modules\expo\node_modules\@expo\cli\build\src\start\server\middleware\ManifestMiddleware.js:333:26)
+    at async internalMiddleware (D:\h\node_modules\expo\node_modules\@expo\cli\build\src\start\server\middleware\ExpoMiddleware.js:88:24)

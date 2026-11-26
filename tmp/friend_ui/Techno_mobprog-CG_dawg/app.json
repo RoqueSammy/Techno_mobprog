@@ -1,0 +1,32 @@
+{
+  "expo": {
+    "name": "TRAIL-IT",
+    "slug": "trail-it",
+    "icon": "./assets/images/logos.png",
+    "scheme": "trailit",
+    "plugins": [
+      "expo-router",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Allow TRAIL-IT to show your position on the campus map and guide you to a destination."
+        }
+      ],
+      "expo-splash-screen",
+      "expo-status-bar",
+      "expo-web-browser"
+    ],
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/logos.png",
+        "backgroundColor": "#171044"
+      },
+      "package": "com.skyt_t.trailit"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "13dca92c-f3c9-4ba1-9455-36c6fd32b5cf"
+      }
+    }
+  }
+}

@@ -1,10 +1,9 @@
 const ORS_API_KEY = process.env.EXPO_PUBLIC_ORS_API_KEY;
 const ORS_URL =
-  "https://api.openrouteservice.org/v2/directions/foot-walking/geojson";
+  "https://api.heigit.org/openrouteservice/v2/directions/foot-walking/geojson";
 
 export async function getWalkingRoute(
-  start: [number, number],
-  destination: [number, number],
+  coordinates: [number, number][],
 ) {
   if (!ORS_API_KEY) {
     throw new Error(
@@ -12,16 +11,27 @@ export async function getWalkingRoute(
     );
   }
 
-  const response = await fetch(ORS_URL, {
-    method: "POST",
-    headers: {
-      Authorization: ORS_API_KEY,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      coordinates: [start, destination],
-    }),
-  });
+  if (coordinates.length < 2) {
+    throw new Error("A walking route needs a start and destination.");
+  }
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 20_000);
+
+  let response: Response;
+  try {
+    response = await fetch(ORS_URL, {
+      method: "POST",
+      headers: {
+        Authorization: ORS_API_KEY,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ coordinates }),
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timeout);
+  }
 
   const data = await response.json();
 
